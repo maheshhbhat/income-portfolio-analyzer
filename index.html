@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Income Portfolio Analyzer</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="page__header">
+      <h1>Income Portfolio Analyzer</h1>
+      <p class="page__subtitle">
+        Enter an investment amount, a desired annual withdrawal, a retirement horizon,
+        and an assumed inflation rate to see a proposed allocation across a curated
+        list of dividend-paying securities and whether it can sustain that
+        (inflation-growing) withdrawal for the full horizon.
+      </p>
+    </header>
+
+    <form id="allocation-form" class="form" novalidate>
+      <div class="form__field">
+        <label for="investment-amount">Investment amount ($)</label>
+        <input
+          type="number"
+          id="investment-amount"
+          name="investmentAmount"
+          min="1"
+          step="0.01"
+          placeholder="500000"
+          required
+        />
+      </div>
+      <div class="form__field">
+        <label for="desired-income">Desired annual withdrawal ($)</label>
+        <input
+          type="number"
+          id="desired-income"
+          name="desiredAnnualWithdrawal"
+          min="0"
+          step="0.01"
+          placeholder="20000"
+          required
+        />
+      </div>
+      <div class="form__field">
+        <label for="horizon-years">Retirement horizon (years)</label>
+        <input
+          type="number"
+          id="horizon-years"
+          name="horizonYears"
+          min="1"
+          step="1"
+          placeholder="30"
+          required
+        />
+      </div>
+      <div class="form__field">
+        <label for="inflation-rate">Inflation rate (%/yr)</label>
+        <input
+          type="number"
+          id="inflation-rate"
+          name="inflationRate"
+          min="0"
+          step="0.1"
+          value="3"
+          required
+        />
+      </div>
+      <button type="submit">Get proposed allocation</button>
+    </form>
+
+    <p id="form-error" class="error" role="alert" hidden></p>
+
+    <section id="results" class="results" hidden aria-live="polite">
+      <p id="verdict-banner" class="banner" hidden></p>
+      <p id="unreachable-banner" class="banner banner--warn" hidden></p>
+
+      <div class="summary">
+        <div class="summary__stat">
+          <span class="summary__label">Blended yield</span>
+          <span id="summary-yield" class="summary__value">—</span>
+        </div>
+        <div class="summary__stat">
+          <span class="summary__label">Blended growth</span>
+          <span id="summary-growth" class="summary__value">—</span>
+        </div>
+        <div class="summary__stat">
+          <span class="summary__label">Blended total return</span>
+          <span id="summary-total-return" class="summary__value">—</span>
+        </div>
+        <div class="summary__stat">
+          <span class="summary__label">Total allocated</span>
+          <span id="summary-allocated" class="summary__value">—</span>
+        </div>
+      </div>
+
+      <h2 class="section-title">Proposed allocation</h2>
+      <table class="allocation-table">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Yield</th>
+            <th>Growth</th>
+            <th>Total return</th>
+            <th>Allocation</th>
+            <th>% of portfolio</th>
+          </tr>
+        </thead>
+        <tbody id="allocation-body"></tbody>
+      </table>
+
+      <h2 class="section-title">Year-by-year projection</h2>
+      <table class="allocation-table">
+        <thead>
+          <tr>
+            <th>Year</th>
+            <th>Starting balance</th>
+            <th>Dividend income</th>
+            <th>Growth</th>
+            <th>Withdrawal</th>
+            <th>Ending balance</th>
+          </tr>
+        </thead>
+        <tbody id="projection-body"></tbody>
+      </table>
+    </section>
+
+    <footer class="disclaimer">
+      <strong>Disclaimer:</strong> Yields and growth rates shown are illustrative,
+      static estimates updated manually &mdash; not real-time market data and not a
+      forecast of future returns. Growth figures in particular are deliberately
+      conservative, long-run baselines rather than an extrapolation of any security's
+      recent performance &mdash; they may understate how well a security has actually
+      been doing lately, by design, so the tool doesn't implicitly promise that a hot
+      streak will continue. The year-by-year projection applies these static rates
+      deterministically every year (no market volatility, no sequence-of-returns risk,
+      and no Monte Carlo simulation). The withdrawal amount grows every year by the
+      flat, illustrative inflation rate you enter (year 1 = the amount you requested,
+      later years compound from it) &mdash; actual inflation varies year to year and is
+      not modeled here. This tool does not model taxes, fees, or rebalancing, and is
+      for educational purposes only; it does not constitute investment advice.
+    </footer>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+node_modules/
+.DS_Store
+
+# Build exhaust from the v1 ai-software-team run that produced this project.
+# Kept on disk as history; not product source.
+.ai-team/
