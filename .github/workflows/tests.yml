@@ -1,0 +1,56 @@
+name: tests
+
+# Tests green on every pull request, as a required check.
+#
+# This is deliberately NOT the factory's merge gate. That gate also checks the
+# story link, the declared scope, and self-modification of its own runner, and
+# its central property is the trusted-main rule: the verdict is computed by the
+# copy already on `main`, never by the copy inside the pull request, so a change
+# cannot weaken the rules it is judged by.
+#
+# Reproducing that here means deciding how the gate reaches this repository —
+# vendored, fetched, or published as a reusable workflow — and each choice has a
+# different failure mode when the two copies drift. That is an architecture
+# decision with a real trade-off, so it is left to an ADR rather than settled by
+# whoever wired up CI first.
+#
+# Until then this enforces the one thing that needs no decision: the tests must
+# pass, and the check is required, so nothing merges red.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No dependencies by design (product.md, standing constraint 7), so there
+      # is nothing to install. A lockfile appearing here is a signal that the
+      # constraint was traded away, and that should be a deliberate decision.
+      - name: Refuse an unannounced dependency
+        run: |
+          if [ -f package-lock.json ] || [ -d node_modules ]; then
+            echo "product.md constraint 7 says zero runtime dependencies."
+            echo "Adding one is allowed, but it amends product.md first."
+            exit 1
+          fi
+          echo "no dependencies, as declared"
+
+      - name: Run the test suite
+        run: npm test
