@@ -1,0 +1,124 @@
+name: merge-gate
+
+# The blocking verdict is computed by the evaluator already on main. A PR can
+# change the candidate copy, but cannot weaken the rules judging that change.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: merge-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the PR head
+        uses: actions/checkout@v4
+        with:
+          path: pr
+
+      - name: Check out the trusted gate from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run product tests from the PR head
+        id: tests
+        working-directory: pr
+        continue-on-error: true
+        run: npm test
+
+      - name: Record CI-computed test result
+        id: result
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "success" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Evaluate using the trusted main copy
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          python3 trusted/.github/merge-gate/merge_gate.py \
+            --repo "${{ github.repository }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            --tests-passed "${{ steps.result.outputs.passed }}" \
+            | tee gate-report.txt
+
+      - name: Publish verdict
+        if: always()
+        run: |
+          {
+            echo '### merge-gate'
+            echo
+            echo '```'
+            cat gate-report.txt 2>/dev/null || echo 'gate produced no report'
+            echo '```'
+            echo
+            echo '_Verdict computed by the trusted evaluator on `main`._'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  surface:
+    name: merge-gate-surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the trusted gate from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: trusted
+
+      - name: Classify the enforcement surface
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python3 trusted/.github/merge-gate/merge_gate.py \
+            --mode surface \
+            --repo "${{ github.repository }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            | tee surface-report.txt
+
+      - name: Annotate and report
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### merge-gate-surface (advisory — never required)'
+            echo
+            echo '```'
+            cat surface-report.txt 2>/dev/null || echo 'surface scan unavailable'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if grep -q '^FAILURE' surface-report.txt 2>/dev/null; then
+            echo "::error title=Gate runner changed::Human hazard acknowledgement is required; no check can protect its own workflow file."
+            exit 1
+          elif grep -q '^NEUTRAL' surface-report.txt 2>/dev/null; then
+            echo "::warning title=Gate logic changed::The blocking verdict came from the trusted main copy."
+          elif ! grep -q '^SUCCESS' surface-report.txt 2>/dev/null; then
+            echo "::error title=Surface scan unavailable::Treat the enforcement surface as unknown."
+            exit 1
+          fi
