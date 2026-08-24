@@ -54,3 +54,6 @@ jobs:
 
       - name: Run the test suite
         run: npm test
+
+      - name: Run merge-gate unit tests
+        run: python3 -m unittest discover -s .github/merge-gate -p 'test_*.py' -v
