@@ -128,6 +128,103 @@
       </table>
     </section>
 
+    <section class="required-portfolio">
+      <h2 class="section-title">Required starting portfolio</h2>
+      <p class="page__subtitle">
+        Enter a desired annual withdrawal, a horizon, and an inflation rate to see
+        the smallest starting portfolio that sustains that plan under this model's
+        fixed, illustrative blended rates &mdash; an educational illustration, not a
+        forecast or a recommendation.
+      </p>
+
+      <form id="required-form" class="form" novalidate>
+        <div class="form__field">
+          <label for="required-withdrawal">Desired annual withdrawal ($)</label>
+          <input
+            type="number"
+            id="required-withdrawal"
+            name="requiredWithdrawal"
+            min="0"
+            step="0.01"
+            placeholder="20000"
+            required
+          />
+        </div>
+        <div class="form__field">
+          <label for="required-horizon">Retirement horizon (years)</label>
+          <input
+            type="number"
+            id="required-horizon"
+            name="requiredHorizon"
+            min="1"
+            step="1"
+            placeholder="30"
+            required
+          />
+        </div>
+        <div class="form__field">
+          <label for="required-inflation">Inflation rate (%/yr)</label>
+          <input
+            type="number"
+            id="required-inflation"
+            name="requiredInflation"
+            min="0"
+            step="0.1"
+            value="3"
+            required
+          />
+        </div>
+        <button type="submit" id="required-submit">Calculate required portfolio</button>
+      </form>
+
+      <p id="required-error" class="error" role="alert" hidden></p>
+
+      <div id="required-unverified" class="banner banner--warn" hidden>
+        <p id="required-unverified-message"></p>
+        <button type="button" id="required-retry">Try again</button>
+      </div>
+
+      <section id="required-results" class="results" hidden aria-live="polite">
+        <p id="required-banner" class="banner banner--success" hidden></p>
+
+        <div class="summary">
+          <div class="summary__stat">
+            <span class="summary__label">Required starting portfolio</span>
+            <span id="required-portfolio-value" class="summary__value">—</span>
+          </div>
+          <div class="summary__stat">
+            <span class="summary__label">Settled blended yield</span>
+            <span id="required-yield" class="summary__value">—</span>
+          </div>
+          <div class="summary__stat">
+            <span class="summary__label">Settled blended growth</span>
+            <span id="required-growth" class="summary__value">—</span>
+          </div>
+          <div class="summary__stat">
+            <span class="summary__label">Settled blended total return</span>
+            <span id="required-total-return" class="summary__value">—</span>
+          </div>
+        </div>
+
+        <h2 class="section-title">Proposed allocation</h2>
+        <table class="allocation-table">
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Yield</th>
+              <th>Growth</th>
+              <th>Total return</th>
+              <th>Allocation</th>
+              <th>% of portfolio</th>
+            </tr>
+          </thead>
+          <tbody id="required-allocation-body"></tbody>
+        </table>
+      </section>
+    </section>
+
     <footer class="disclaimer">
       <strong>Disclaimer:</strong> Yields and growth rates shown are illustrative,
       static estimates updated manually &mdash; not real-time market data and not a

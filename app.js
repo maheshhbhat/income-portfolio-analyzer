@@ -1,4 +1,5 @@
 import { computeRetirementPlan } from './src/lib/retirement.js';
+import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
 import { SECURITIES } from './src/data/securities.js';
 
 const form = document.getElementById('allocation-form');
@@ -114,4 +115,108 @@ form.addEventListener('submit', (event) => {
   }
 
   render(result);
+});
+
+// --- Required starting portfolio section ---
+
+const requiredForm = document.getElementById('required-form');
+const requiredErrorEl = document.getElementById('required-error');
+const requiredUnverifiedEl = document.getElementById('required-unverified');
+const requiredUnverifiedMessage = document.getElementById('required-unverified-message');
+const requiredRetryButton = document.getElementById('required-retry');
+const requiredResultsEl = document.getElementById('required-results');
+const requiredBanner = document.getElementById('required-banner');
+const requiredPortfolioValue = document.getElementById('required-portfolio-value');
+const requiredYield = document.getElementById('required-yield');
+const requiredGrowth = document.getElementById('required-growth');
+const requiredTotalReturn = document.getElementById('required-total-return');
+const requiredAllocationBody = document.getElementById('required-allocation-body');
+
+// Money is integer cents inside the computation; cents become dollars only
+// here, at the display edge.
+const centsToDisplay = (cents) => currency.format(cents / 100);
+
+function hideRequiredOutputs() {
+  requiredErrorEl.hidden = true;
+  requiredErrorEl.textContent = '';
+  requiredUnverifiedEl.hidden = true;
+  requiredUnverifiedMessage.textContent = '';
+  requiredResultsEl.hidden = true;
+}
+
+function renderRequired(result, horizonYears) {
+  requiredBanner.textContent =
+    `Smallest starting portfolio under this model's fixed, illustrative blended rates: ` +
+    `${centsToDisplay(result.requiredPortfolioCents)} sustains the plan for all ${horizonYears} years ` +
+    `(settled in ${result.rounds} round${result.rounds === 1 ? '' : 's'}). This is minimal only for ` +
+    `these settled rates — not a minimum across all possible allocations — and is an illustration ` +
+    `under fixed model assumptions, not a forecast or advice.`;
+  requiredBanner.hidden = false;
+
+  requiredPortfolioValue.textContent = centsToDisplay(result.requiredPortfolioCents);
+  requiredYield.textContent = percent(result.blendedYield);
+  requiredGrowth.textContent = percent(result.blendedGrowth);
+  requiredTotalReturn.textContent = percent(result.blendedTotalReturn);
+
+  requiredAllocationBody.innerHTML = '';
+  for (const line of result.allocation) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${line.symbol}</td>
+      <td>${line.name}</td>
+      <td>${formatType(line.type)}</td>
+      <td>${percent(line.yield)}</td>
+      <td>${percent(line.growthRate)}</td>
+      <td>${percent(line.totalReturn)}</td>
+      <td>${centsToDisplay(line.amountCents)}</td>
+      <td>${percent(line.percentOfPortfolio)}</td>
+    `;
+    requiredAllocationBody.appendChild(row);
+  }
+
+  requiredResultsEl.hidden = false;
+}
+
+function runRequiredComputation() {
+  hideRequiredOutputs();
+
+  const withdrawalDollars = Number.parseFloat(document.getElementById('required-withdrawal').value);
+  const horizonYears = Number.parseFloat(document.getElementById('required-horizon').value);
+  const inflationRate = Number.parseFloat(document.getElementById('required-inflation').value) / 100;
+
+  // Convert the entered dollar amount to integer cents at this edge; a
+  // non-numeric entry becomes NaN, which the module rejects with an
+  // actionable invalid-input message.
+  const desiredAnnualWithdrawalCents = Number.isFinite(withdrawalDollars)
+    ? Math.round(withdrawalDollars * 100)
+    : NaN;
+
+  const result = computeRequiredPortfolio(
+    { desiredAnnualWithdrawalCents, horizonYears, inflationRate },
+    SECURITIES
+  );
+
+  if (!result.ok) {
+    if (result.reason === 'no-verified-result') {
+      requiredUnverifiedMessage.textContent =
+        `The product could not calculate a verified result for these inputs. ` +
+        `No unverified figure is shown. ${result.error}`;
+      requiredUnverifiedEl.hidden = false;
+    } else {
+      requiredErrorEl.textContent = result.error;
+      requiredErrorEl.hidden = false;
+    }
+    return;
+  }
+
+  renderRequired(result, horizonYears);
+}
+
+requiredForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  runRequiredComputation();
+});
+
+requiredRetryButton.addEventListener('click', () => {
+  runRequiredComputation();
 });
