@@ -60,6 +60,10 @@ test('requires provenance, matching values, valid official HTTPS URLs, and valid
   unofficial.entries[0].facts.name.sourceUrl = 'https://vanguard.example.com/fund';
   assertError(validateProviderSnapshot(unofficial), 'VTI', 'name');
 
+  const unlistedSubdomain = snapshot();
+  unlistedSubdomain.entries[0].facts.name.sourceUrl = 'https://untrusted.investor.vanguard.com/fund';
+  assertError(validateProviderSnapshot(unlistedSubdomain), 'VTI', 'name');
+
   const badDate = snapshot();
   badDate.entries[0].facts.ticker.asOf = '2026-02-30';
   assertError(validateProviderSnapshot(badDate), 'VTI', 'ticker');

@@ -32,9 +32,7 @@ function isOfficialHttpsUrl(value, providerId) {
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
-    return officialHosts.some(
-      (host) => url.hostname === host || url.hostname.endsWith(`.${host}`)
-    );
+    return officialHosts.includes(url.hostname);
   } catch {
     return false;
   }
