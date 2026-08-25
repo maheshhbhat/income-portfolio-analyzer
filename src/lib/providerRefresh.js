@@ -32,10 +32,17 @@ function unquote(value) {
 function fieldFromText(text, names) {
   for (const name of names) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const label = escaped.replace(/[-_]/g, '[-_ ]');
     const patterns = [
-      new RegExp(`(?:data-${escaped}|${escaped})\\s*=\\s*["']([^"']+)["']`, 'i'),
-      new RegExp(`(?:${escaped})\\s*[:=]\\s*["']([^"']+)["']`, 'i'),
-      new RegExp(`(?:${escaped})\\s*[:=]\\s*([^<\\n\\r;|]+)`, 'i')
+      // Only dedicated data attributes are facts. Do not accept generic
+      // attributes such as `name`, or substring aliases such as
+      // `data-not-ticker`, as those can describe unrelated page controls.
+      new RegExp(`(?:^|\\s)data-${escaped}\\s*=\\s*["']([^"']+)["']`, 'i'),
+      // Text facts must begin at a text/line boundary and use an exact,
+      // provider-page fact label. This permits ordinary HTML text while
+      // rejecting incidental markers such as `not-yield: 4%`.
+      new RegExp(`(?:^|[>\\n\\r])\\s*${label}\\s*[:=]\\s*["']([^"']+)["']`, 'i'),
+      new RegExp(`(?:^|[>\\n\\r])\\s*${label}\\s*[:=]\\s*([^<\\n\\r;|]+)`, 'i')
     ];
     for (const pattern of patterns) {
       const match = text.match(pattern);
@@ -61,10 +68,10 @@ function pageForSymbol(pages, symbol) {
 
 /**
  * Parses a supplied official-page response. Supported factual markers are
- * `name`/`fund-name`, `ticker`/`symbol`, and `trailing-yield`/`yield`, either
- * as HTML data attributes or `Label: value` text. Values are returned only
- * when all three can be read from the supplied text and the final URL is on
- * the selected provider's official HTTPS host.
+ * `fund-name`, `ticker`/`symbol`, and `trailing-yield`/`30-day-sec-yield`,
+ * either as dedicated HTML data attributes or exact `Label: value` text.
+ * Values are returned only when all three can be read from the supplied text
+ * and the final URL is on the selected provider's official HTTPS host.
  */
 export function parseOfficialProviderPage({ providerId, text, finalUrl } = {}) {
   if (!Object.hasOwn(PROVIDER_OFFICIAL_HOSTS, providerId)) {
@@ -77,9 +84,9 @@ export function parseOfficialProviderPage({ providerId, text, finalUrl } = {}) {
     return { ok: false, error: `The final response URL must remain on the official ${providerId} domain.` };
   }
 
-  const name = fieldFromText(text, ['fund-name', 'fund_name', 'name']);
+  const name = fieldFromText(text, ['fund-name', 'fund_name']);
   const symbol = fieldFromText(text, ['ticker', 'symbol']);
-  const trailingYield = parseYield(fieldFromText(text, ['trailing-yield', 'trailing_yield', '30-day-sec-yield', 'yield']));
+  const trailingYield = parseYield(fieldFromText(text, ['trailing-yield', 'trailing_yield', '30-day-sec-yield']));
   if (!name || !symbol || trailingYield === null) {
     return { ok: false, error: 'The official response does not contain verifiable name, ticker, and trailing yield facts.' };
   }

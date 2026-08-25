@@ -42,6 +42,18 @@ test('malformed, partial, cross-domain, and verified-growth candidates fail clos
   assert.equal(result.snapshot, current);
 });
 
+test('unrelated name and yield markers cannot be accepted as verified facts', () => {
+  const current = structuredClone(VANGUARD_SNAPSHOT);
+  const pages = pagesFor(current);
+  pages.VTI.text = '<input name="search" value="Vanguard Total Stock Market ETF">\n'
+    + '<div data-not-ticker="VTI" data-not-yield="4%">not-yield: 4%</div>';
+
+  const result = refreshProviderSnapshot({ currentSnapshot: current, refreshDate: '2026-08-25', pages });
+  assert.equal(result.accepted, false);
+  assert.equal(result.snapshot, current);
+  assert.match(result.error, /verifiable name, ticker, and trailing yield facts/);
+});
+
 test('refresh core is deterministic and has no IO dependencies', async () => {
   const input = { currentSnapshot: VANGUARD_SNAPSHOT, refreshDate: '2026-08-25', pages: pagesFor(VANGUARD_SNAPSHOT) };
   assert.deepEqual(refreshProviderSnapshot(input), refreshProviderSnapshot(input));
