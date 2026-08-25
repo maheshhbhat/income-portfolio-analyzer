@@ -179,6 +179,39 @@ button[type="submit"]:hover {
   letter-spacing: 0.02em;
 }
 
+.required-portfolio {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.required-portfolio .section-title {
+  margin-top: 0;
+}
+
+#required-unverified {
+  margin-top: 1rem;
+}
+
+#required-unverified p {
+  margin: 0 0 0.75rem;
+}
+
+#required-retry {
+  padding: 0.5rem 1.1rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#required-retry:hover {
+  background: #1a5fce;
+}
+
 .disclaimer {
   margin-top: 3rem;
   padding-top: 1.25rem;
