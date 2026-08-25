@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import { once } from 'node:events';
 import os from 'node:os';
@@ -55,6 +55,77 @@ test('failed refresh leaves persisted last-known-good bytes unchanged', async ()
     const active = await request(handler, { method: 'GET', url: '/api/providers/vanguard/snapshot' });
     assert.equal(active.payload.snapshot.asOf, VANGUARD_SNAPSHOT.asOf);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+async function seedLastKnownGood(root, snapshot = VANGUARD_SNAPSHOT) {
+  const runtime = path.join(root, '.runtime', 'provider-snapshots');
+  const target = path.join(runtime, `${snapshot.providerId}.json`);
+  await mkdir(runtime, { recursive: true });
+  // Deliberately retain a non-canonical byte layout: successful persistence
+  // may replace it, but every rejected refresh must preserve it exactly.
+  await writeFile(target, `${JSON.stringify(snapshot)}\n`, 'utf8');
+  return { target, bytes: await readFile(target, 'utf8'), asOf: snapshot.asOf };
+}
+
+async function assertRejectedRefresh({ name, fetchImpl, status, error }) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'provider-refresh-'));
+  try {
+    const persisted = await seedLastKnownGood(root);
+    let renameCalls = 0;
+    const handler = createRequestHandler({
+      root,
+      fetchImpl,
+      fsOps: {
+        mkdir, readFile, unlink, writeFile,
+        rename: async (...arguments_) => { renameCalls += 1; return rename(...arguments_); }
+      }
+    });
+    const refresh = await request(handler, { method: 'POST', url: '/api/providers/vanguard/refresh' });
+    assert.equal(refresh.status, status, name);
+    assert.match(refresh.payload.error, error, name);
+    assert.equal(renameCalls, 0, `${name}: rejected refresh attempted atomic rename`);
+    assert.equal(await readFile(persisted.target, 'utf8'), persisted.bytes, `${name}: snapshot bytes changed`);
+    const active = await request(handler, { method: 'GET', url: '/api/providers/vanguard/active-snapshot' });
+    assert.equal(active.status, 200, name);
+    assert.equal(active.payload.snapshot.asOf, persisted.asOf, `${name}: active as-of changed`);
+  } finally { await rm(root, { recursive: true, force: true }); }
+}
+
+test('refresh failure classes preserve the exact last-known-good snapshot', async (t) => {
+  const entryFor = (url) => VANGUARD_SNAPSHOT.entries.find((item) => item.facts.name.sourceUrl === url);
+  const cases = [
+    {
+      name: 'network failure', status: 502, error: /unable to reach/i,
+      fetchImpl: async () => { throw new Error('offline'); }
+    },
+    {
+      name: 'non-success response', status: 502, error: /HTTP 503/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), { ok: false })
+    },
+    {
+      name: 'malformed response content', status: 422, error: /does not contain verifiable/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), { text: '<html>not fund facts</html>' })
+    },
+    {
+      name: 'partial response content', status: 422, error: /does not contain verifiable/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}` })
+    },
+    {
+      name: 'unverifiable factual value', status: 422, error: /does not contain verifiable/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}\nTrailing yield: unknown` })
+    }
+  ];
+  for (const scenario of cases) await t.test(scenario.name, () => assertRejectedRefresh(scenario));
+});
+
+test('unsupported, empty, and null provider identifiers return actionable JSON errors', async () => {
+  const handler = createRequestHandler();
+  for (const requestPath of ['/api/providers/not-a-provider/snapshot', '/api/providers//snapshot', '/api/providers/null/snapshot', '/api/active-snapshot/']) {
+    const response = await request(handler, { method: 'GET', url: requestPath });
+    assert.equal(response.status, 400, requestPath);
+    assert.equal(response.payload.ok, false, requestPath);
+    assert.match(response.payload.error, /Choose one of: illustrative, vanguard, fidelity\./, requestPath);
+  }
 });
 
 const RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE = process.env.RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE === '1';

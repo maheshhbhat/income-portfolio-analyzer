@@ -33,12 +33,12 @@ const TYPE_LABELS = {
 };
 const formatType = (type) => TYPE_LABELS[type] || type;
 
-function sourceCell(line) {
-  const cell = document.createElement('td');
+export function sourceCell(line, documentRef = document) {
+  const cell = documentRef.createElement('td');
   const sourceUrl = line.facts?.name?.sourceUrl
     || activeProviderSnapshot?.entries.find((entry) => entry.symbol === line.symbol)?.facts?.name?.sourceUrl;
   if (sourceUrl) {
-    const link = document.createElement('a');
+    const link = documentRef.createElement('a');
     link.href = sourceUrl;
     link.textContent = 'Official source';
     link.target = '_blank';
@@ -51,13 +51,13 @@ function sourceCell(line) {
   return cell;
 }
 
-function allocationRow(line, amount) {
-  const row = document.createElement('tr');
+export function allocationRow(line, amount, documentRef = document) {
+  const row = documentRef.createElement('tr');
   for (const value of [line.symbol, line.name, formatType(line.type), percent(line.yield), percent(line.growthRate), percent(line.totalReturn), amount, percent(line.percentOfPortfolio)]) {
-    const cell = document.createElement('td');
+    const cell = documentRef.createElement('td');
     cell.textContent = value;
     row.appendChild(cell);
-    if (value === line.name) row.appendChild(sourceCell(line));
+    if (value === line.name) row.appendChild(sourceCell(line, documentRef));
   }
   return row;
 }

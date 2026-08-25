@@ -70,6 +70,15 @@ export function createRequestHandler({ root = ROOT, fetchImpl = globalThis.fetch
   }
   return async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    // Keep an empty provider identifier on the API surface. Without this
+    // explicit branch it falls through to static-file handling and loses the
+    // actionable supported-provider message that every other bad identifier
+    // receives.
+    const emptyProviderAction = url.pathname.match(/^\/api\/providers\/\/(snapshot|active-snapshot|refresh)$/)
+      || (url.pathname === '/api/active-snapshot/' ? ['active-snapshot'] : null);
+    if (emptyProviderAction) {
+      return sendJson(res, 400, { ok: false, error: supportedError('') });
+    }
     const match = url.pathname.match(/^\/api\/providers\/([^/]+)\/(snapshot|active-snapshot|refresh)$/)
       || url.pathname.match(/^\/api\/active-snapshot\/([^/]+)$/)?.concat('snapshot');
     if (match) {
