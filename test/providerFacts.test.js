@@ -79,6 +79,13 @@ test('rejects malformed snapshots, duplicate symbols, empty sets, and missing en
   assert.doesNotThrow(() => validateProviderSnapshot(null));
   assertError(validateProviderSnapshot({ providerId: 'unknown', asOf: 'August 1', entries: [] }), 'snapshot', 'providerId');
 
+  for (const providerId of ['unknown', null]) {
+    const malformedProvider = snapshot();
+    malformedProvider.providerId = providerId;
+    assert.doesNotThrow(() => validateProviderSnapshot(malformedProvider));
+    assertError(validateProviderSnapshot(malformedProvider), 'snapshot', 'providerId');
+  }
+
   const duplicate = snapshot();
   duplicate.entries.push(structuredClone(duplicate.entries[0]));
   assertError(validateProviderSnapshot(duplicate), 'VTI', 'symbol');

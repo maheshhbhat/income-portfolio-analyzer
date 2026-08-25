@@ -27,11 +27,12 @@ function isDate(value) {
 }
 
 function isOfficialHttpsUrl(value, providerId) {
-  if (typeof value !== 'string') return false;
+  const officialHosts = PROVIDER_OFFICIAL_HOSTS[providerId];
+  if (typeof value !== 'string' || !officialHosts) return false;
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
-    return PROVIDER_OFFICIAL_HOSTS[providerId].some(
+    return officialHosts.some(
       (host) => url.hostname === host || url.hostname.endsWith(`.${host}`)
     );
   } catch {
