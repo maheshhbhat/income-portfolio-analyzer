@@ -1,6 +1,7 @@
 import { computeRetirementPlan } from './src/lib/retirement.js';
 import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
 import { SECURITIES } from './src/data/securities.js';
+import { selectProvider } from './src/data/providers/index.js';
 
 const form = document.getElementById('allocation-form');
 const errorEl = document.getElementById('form-error');
@@ -13,6 +14,12 @@ const summaryTotalReturn = document.getElementById('summary-total-return');
 const summaryAllocated = document.getElementById('summary-allocated');
 const allocationBody = document.getElementById('allocation-body');
 const projectionBody = document.getElementById('projection-body');
+const providerSelect = document.getElementById('provider-select');
+const refreshDataButton = document.getElementById('refresh-data');
+const providerStatus = document.getElementById('provider-status');
+const providerError = document.getElementById('provider-error');
+
+let activeProviderSnapshot = null;
 
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const percent = (value) => `${(value * 100).toFixed(2)}%`;
@@ -25,6 +32,94 @@ const TYPE_LABELS = {
   'bond-etf': 'Bond ETF'
 };
 const formatType = (type) => TYPE_LABELS[type] || type;
+
+function sourceCell(line) {
+  const cell = document.createElement('td');
+  const sourceUrl = line.facts?.name?.sourceUrl
+    || activeProviderSnapshot?.entries.find((entry) => entry.symbol === line.symbol)?.facts?.name?.sourceUrl;
+  if (sourceUrl) {
+    const link = document.createElement('a');
+    link.href = sourceUrl;
+    link.textContent = 'Official source';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.setAttribute('aria-label', `Official ${line.symbol} source`);
+    cell.appendChild(link);
+  } else {
+    cell.textContent = '—';
+  }
+  return cell;
+}
+
+function allocationRow(line, amount) {
+  const row = document.createElement('tr');
+  for (const value of [line.symbol, line.name, formatType(line.type), percent(line.yield), percent(line.growthRate), percent(line.totalReturn), amount, percent(line.percentOfPortfolio)]) {
+    const cell = document.createElement('td');
+    cell.textContent = value;
+    row.appendChild(cell);
+    if (value === line.name) row.appendChild(sourceCell(line));
+  }
+  return row;
+}
+
+function setProviderStatus() {
+  const providerId = providerSelect.value;
+  refreshDataButton.hidden = providerId === 'illustrative';
+  if (providerId === 'illustrative') {
+    providerStatus.textContent = 'Illustrative comparison data is selected. It is not real-time market data.';
+    return;
+  }
+  if (activeProviderSnapshot?.providerId === providerId) {
+    const name = providerId === 'vanguard' ? 'Vanguard' : 'Fidelity';
+    providerStatus.textContent = `${name} data active as of ${activeProviderSnapshot.asOf}. This comparison is illustrative, not financial advice, and is not endorsed by ${name}.`;
+  }
+}
+
+async function selectedSecurities() {
+  if (providerSelect.value === 'illustrative') return SECURITIES;
+  const providerId = providerSelect.value;
+  const response = await fetch(`/api/providers/${providerId}/snapshot`);
+  const payload = await response.json();
+  if (!response.ok || !payload.ok) throw new Error(payload.error || 'The active provider snapshot could not be loaded.');
+  activeProviderSnapshot = payload.snapshot;
+  const selected = selectProvider(providerId, { [providerId]: activeProviderSnapshot });
+  if (!selected.ok) throw new Error(selected.error);
+  setProviderStatus();
+  return selected.securities;
+}
+
+function showProviderError(message) {
+  providerError.textContent = message;
+  providerError.hidden = false;
+}
+
+providerSelect.addEventListener('change', async () => {
+  providerError.hidden = true;
+  activeProviderSnapshot = null;
+  setProviderStatus();
+  if (providerSelect.value !== 'illustrative') {
+    try { await selectedSecurities(); } catch (error) { showProviderError(error.message); }
+  }
+});
+
+refreshDataButton.addEventListener('click', async () => {
+  const providerId = providerSelect.value;
+  providerError.hidden = true;
+  refreshDataButton.disabled = true;
+  refreshDataButton.textContent = 'Refreshing…';
+  try {
+    const response = await fetch(`/api/providers/${providerId}/refresh`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || 'Refresh failed. Your previous data remains active.');
+    activeProviderSnapshot = payload.snapshot;
+    setProviderStatus();
+  } catch (error) {
+    showProviderError(`${error.message} Your last-known-good data remains active.`);
+  } finally {
+    refreshDataButton.disabled = false;
+    refreshDataButton.textContent = 'Refresh Data';
+  }
+});
 
 function showError(message) {
   errorEl.textContent = message;
@@ -67,18 +162,7 @@ function render(result) {
 
   allocationBody.innerHTML = '';
   for (const line of result.allocations) {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${line.symbol}</td>
-      <td>${line.name}</td>
-      <td>${formatType(line.type)}</td>
-      <td>${percent(line.yield)}</td>
-      <td>${percent(line.growthRate)}</td>
-      <td>${percent(line.totalReturn)}</td>
-      <td>${currency.format(line.amount)}</td>
-      <td>${percent(line.percentOfPortfolio)}</td>
-    `;
-    allocationBody.appendChild(row);
+    allocationBody.appendChild(allocationRow(line, currency.format(line.amount)));
   }
 
   projectionBody.innerHTML = '';
@@ -98,7 +182,7 @@ function render(result) {
   resultsEl.hidden = false;
 }
 
-form.addEventListener('submit', (event) => {
+form.addEventListener('submit', async (event) => {
   event.preventDefault();
   clearError();
 
@@ -107,7 +191,10 @@ form.addEventListener('submit', (event) => {
   const horizonYears = Number.parseFloat(document.getElementById('horizon-years').value);
   const inflationRate = Number.parseFloat(document.getElementById('inflation-rate').value) / 100;
 
-  const result = computeRetirementPlan({ investmentAmount, desiredAnnualWithdrawal, horizonYears, inflationRate }, SECURITIES);
+  let securities;
+  try { securities = await selectedSecurities(); }
+  catch (error) { showError(error.message); return; }
+  const result = computeRetirementPlan({ investmentAmount, desiredAnnualWithdrawal, horizonYears, inflationRate }, securities);
 
   if (!result.ok) {
     showError(result.error);
@@ -160,24 +247,13 @@ function renderRequired(result, horizonYears) {
 
   requiredAllocationBody.innerHTML = '';
   for (const line of result.allocation) {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${line.symbol}</td>
-      <td>${line.name}</td>
-      <td>${formatType(line.type)}</td>
-      <td>${percent(line.yield)}</td>
-      <td>${percent(line.growthRate)}</td>
-      <td>${percent(line.totalReturn)}</td>
-      <td>${centsToDisplay(line.amountCents)}</td>
-      <td>${percent(line.percentOfPortfolio)}</td>
-    `;
-    requiredAllocationBody.appendChild(row);
+    requiredAllocationBody.appendChild(allocationRow(line, centsToDisplay(line.amountCents)));
   }
 
   requiredResultsEl.hidden = false;
 }
 
-function runRequiredComputation() {
+async function runRequiredComputation() {
   hideRequiredOutputs();
 
   const withdrawalDollars = Number.parseFloat(document.getElementById('required-withdrawal').value);
@@ -191,9 +267,12 @@ function runRequiredComputation() {
     ? Math.round(withdrawalDollars * 100)
     : NaN;
 
+  let securities;
+  try { securities = await selectedSecurities(); }
+  catch (error) { requiredErrorEl.textContent = error.message; requiredErrorEl.hidden = false; return; }
   const result = computeRequiredPortfolio(
     { desiredAnnualWithdrawalCents, horizonYears, inflationRate },
-    SECURITIES
+    securities
   );
 
   if (!result.ok) {
@@ -212,9 +291,9 @@ function runRequiredComputation() {
   renderRequired(result, horizonYears);
 }
 
-requiredForm.addEventListener('submit', (event) => {
+requiredForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  runRequiredComputation();
+  await runRequiredComputation();
 });
 
 requiredRetryButton.addEventListener('click', () => {
