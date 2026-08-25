@@ -11,6 +11,10 @@
 
 import { bracketAndBlend } from './allocation.js';
 
+// Re-exported so sibling pure modules (requiredPortfolio.js) can reuse the
+// allocation engine through a single import boundary.
+export { bracketAndBlend };
+
 /**
  * @param {{investmentAmount: number, desiredAnnualWithdrawal: number, horizonYears: number, inflationRate: number}} input
  * @param {Array<{symbol: string, name: string, type: string, yield: number, growthRate: number}>} securities
