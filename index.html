@@ -18,6 +18,23 @@
       </p>
     </header>
 
+    <section class="provider-controls" aria-labelledby="provider-title">
+      <h2 id="provider-title" class="section-title">Data set</h2>
+      <div class="provider-controls__row">
+        <label for="provider-select">Fund provider</label>
+        <select id="provider-select" name="provider">
+          <option value="illustrative" selected>Illustrative comparison</option>
+          <option value="vanguard">Vanguard</option>
+          <option value="fidelity">Fidelity</option>
+        </select>
+        <button type="button" id="refresh-data" hidden>Refresh Data</button>
+      </div>
+      <p id="provider-status" class="provider-status" aria-live="polite">
+        Illustrative comparison data is selected. It is not real-time market data.
+      </p>
+      <p id="provider-error" class="error" role="alert" hidden></p>
+    </section>
+
     <form id="allocation-form" class="form" novalidate>
       <div class="form__field">
         <label for="investment-amount">Investment amount ($)</label>
@@ -101,6 +118,7 @@
           <tr>
             <th>Symbol</th>
             <th>Name</th>
+            <th>Official source</th>
             <th>Type</th>
             <th>Yield</th>
             <th>Growth</th>
@@ -210,8 +228,9 @@
         <table class="allocation-table">
           <thead>
             <tr>
-              <th>Symbol</th>
-              <th>Name</th>
+            <th>Symbol</th>
+            <th>Name</th>
+            <th>Official source</th>
               <th>Type</th>
               <th>Yield</th>
               <th>Growth</th>
