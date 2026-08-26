@@ -112,6 +112,7 @@ refreshDataButton.addEventListener('click', async () => {
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || 'Refresh failed. Your previous data remains active.');
     activeProviderSnapshot = payload.snapshot;
+    invalidateCalculatedResults();
     setProviderStatus();
   } catch (error) {
     showProviderError(`${error.message} Your last-known-good data remains active.`);
@@ -130,6 +131,22 @@ function showError(message) {
 function clearError() {
   errorEl.hidden = true;
   errorEl.textContent = '';
+}
+
+/**
+ * Results are tied to the snapshot used for their calculation. A successful
+ * provider refresh therefore makes both calculators stale until the user
+ * deliberately recalculates with the accepted snapshot.
+ */
+function invalidateCalculatedResults() {
+  resultsEl.hidden = true;
+  verdictBanner.hidden = true;
+  unreachableBanner.hidden = true;
+  allocationBody.innerHTML = '';
+  projectionBody.innerHTML = '';
+  hideRequiredOutputs();
+  requiredBanner.hidden = true;
+  requiredAllocationBody.innerHTML = '';
 }
 
 function render(result) {
