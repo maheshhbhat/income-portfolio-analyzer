@@ -29,6 +29,68 @@ function unquote(value) {
   return value.replace(/^['"]|['"]$/g, '').trim();
 }
 
+function decodeHtml(value) {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&reg;|&#174;|&#x00ae;/gi, '®')
+    .replace(/&trade;|&#8482;|&#x2122;/gi, '™')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"');
+}
+
+function pageText(html) {
+  // Keep neighbouring provider-card fields separated.  This is deliberately
+  // not a general HTML parser: the parser below accepts only named provider
+  // fields and fails closed when their value is not nearby.
+  return decodeHtml(html)
+    .replace(/<\s*(?:script|style)\b[^>]*>[\s\S]*?<\s*\/\s*(?:script|style)\s*>/gi, ' ')
+    .replace(/<\s*sup\b[^>]*>[\s\S]*?<\s*\/\s*sup\s*>/gi, ' ')
+    .replace(/<\s*\/??(?:div|section|article|header|h[1-6]|p|li|tr|td|th|span|strong|small|sup|br|title)\b[^>]*>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    // Provider yield cards place a dated "AS OF" line between the label and
+    // value.  It is presentation metadata, not a yield candidate.
+    .replace(/\bAS\s+OF\s+\d{2}[/-]\d{2}[/-]\d{4}\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function displayName(value) {
+  return decodeHtml(value).replace(/\s+([®™])/g, '$1').replace(/\s+/g, ' ').trim();
+}
+
+function titleValue(text) {
+  const match = text.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)
+    || text.match(/<meta\b[^>]*(?:property|name)=["'](?:og:title|title)["'][^>]*content=["']([^"']+)["']/i);
+  return match ? displayName(match[1]) : null;
+}
+
+function titleFacts(providerId, text) {
+  const title = titleValue(text);
+  if (!title) return {};
+  const match = providerId === 'vanguard'
+    ? title.match(/^([A-Z0-9.]+)\s*-\s*(.+?)\s*\|\s*Vanguard\b/i)
+    : title.match(/^([A-Z0-9.]+)\s*-\s*(.+?)\s*\|\s*Fidelity\b/i);
+  if (!match) return {};
+  const symbol = match[1].toUpperCase();
+  const name = displayName(match[2]);
+  // A ticker is not a name field.  Requiring a title-style multi-word name
+  // rejects pages whose only candidate is an input or ticker control.
+  return name && name !== symbol && /\s/.test(name) ? { name, symbol } : {};
+}
+
+function valueBesideLabel(text, labels) {
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[ -]/g, '[\\s-]+');
+    // A percentage is required.  It prevents the "30" in a 30-day label,
+    // dates, and unrelated bare numbers from becoming an observed yield.
+    const pattern = new RegExp(`${escaped}(?:\\s|:|\\||\\u2014|\\u2013|\\+|AS|OF|footnote){0,120}?([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))\\s*%`, 'i');
+    const match = text.match(pattern);
+    if (match) return `${match[1]}%`;
+  }
+  return null;
+}
+
 function fieldFromText(text, names) {
   for (const name of names) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -66,6 +128,33 @@ function pageForSymbol(pages, symbol) {
   return isRecord(pages) ? pages[symbol] : undefined;
 }
 
+function vanguardDynamicYield(text) {
+  // Vanguard's profile shell renders the yield card client-side.  The
+  // price component is the same official data response used by that card;
+  // accept only its named yield field, never a number found elsewhere in
+  // JSON or markup.
+  try {
+    // A duplicate named field is ambiguous even if JSON.parse would silently
+    // retain the final value.  Count the exact field token before parsing.
+    if ((text.match(/"yieldPct"\s*:/g) ?? []).length !== 1) return null;
+    const payload = JSON.parse(text);
+    const yieldFact = payload?.currentPrice?.yield;
+    if (!isRecord(yieldFact) || !Object.hasOwn(yieldFact, 'yieldPct')) return null;
+    // `yieldPct` is Vanguard's explicitly named percent-points field (for
+    // example, "1.01" means 1.01%, not a decimal ratio).  Accept a display
+    // percent sign if Vanguard supplies one, but use the field semantics in
+    // either case rather than treating an unrelated bare JSON number as a
+    // ratio.
+    const value = String(yieldFact.yieldPct).trim();
+    const match = value.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*%?$/);
+    if (!match) return null;
+    const percentagePoints = Number(match[1]);
+    return Number.isFinite(percentagePoints) ? percentagePoints / 100 : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parses a supplied official-page response. Supported factual markers are
  * `fund-name`, `ticker`/`symbol`, and `trailing-yield`/`30-day-sec-yield`,
@@ -73,7 +162,7 @@ function pageForSymbol(pages, symbol) {
  * Values are returned only when all three can be read from the supplied text
  * and the final URL is on the selected provider's official HTTPS host.
  */
-export function parseOfficialProviderPage({ providerId, text, finalUrl } = {}) {
+export function parseOfficialProviderPage({ providerId, text, finalUrl, dynamicText, dynamicFinalUrl } = {}) {
   if (!Object.hasOwn(PROVIDER_OFFICIAL_HOSTS, providerId)) {
     return { ok: false, error: 'A supported provider id is required to parse a refresh page.' };
   }
@@ -84,13 +173,38 @@ export function parseOfficialProviderPage({ providerId, text, finalUrl } = {}) {
     return { ok: false, error: `The final response URL must remain on the official ${providerId} domain.` };
   }
 
-  const name = fieldFromText(text, ['fund-name', 'fund_name']);
-  const symbol = fieldFromText(text, ['ticker', 'symbol']);
-  const trailingYield = parseYield(fieldFromText(text, ['trailing-yield', 'trailing_yield', '30-day-sec-yield']));
-  if (!name || !symbol || trailingYield === null) {
+  const title = titleFacts(providerId, text);
+  const flattened = pageText(text);
+  // The field fallback exists solely for explicit, named facts in injected
+  // deterministic fixtures.  Live provider pages use the provider title and
+  // the visible provider yield card above.
+  const name = title.name ?? fieldFromText(text, ['fund-name', 'fund_name']);
+  const symbol = title.symbol ?? fieldFromText(text, ['ticker', 'symbol']);
+  const observedYield = providerId === 'vanguard'
+    ? valueBesideLabel(flattened, ['30 day SEC yield'])
+    : valueBesideLabel(flattened, ['30-Day Yield', '7-Day Yield']);
+  const dynamicYield = providerId === 'vanguard' && dynamicText !== undefined
+    ? (isOfficialFinalUrl(dynamicFinalUrl, providerId) ? vanguardDynamicYield(dynamicText) : null)
+    : undefined;
+  const trailingYield = dynamicYield ?? parseYield(observedYield ?? fieldFromText(text, ['trailing-yield', 'trailing_yield', '30-day-sec-yield']));
+  if (providerId === 'vanguard' && dynamicText !== undefined && dynamicYield === null) {
+    return { ok: false, error: 'The official Vanguard dynamic response does not contain one explicitly labeled trailing-yield fact.' };
+  }
+  if (!name || !symbol || name === symbol || trailingYield === null) {
     return { ok: false, error: 'The official response does not contain verifiable name, ticker, and trailing yield facts.' };
   }
-  return { ok: true, name, symbol, trailingYield, sourceUrl: finalUrl };
+  return {
+    ok: true,
+    name,
+    symbol,
+    trailingYield,
+    // The profile remains the provenance for identity and the user-facing
+    // official link. Vanguard's yield is instead verified exclusively from
+    // its separate dynamic response, so preserve that response URL for the
+    // yield fact rather than making the profile claim a fact it did not show.
+    sourceUrl: finalUrl,
+    trailingYieldSourceUrl: dynamicYield !== undefined ? dynamicFinalUrl : finalUrl
+  };
 }
 
 function rejected(currentSnapshot, error) {
@@ -115,13 +229,15 @@ export function refreshProviderSnapshot({ currentSnapshot, refreshDate, pages } 
     const parsed = parseOfficialProviderPage({
       providerId,
       text: page?.text ?? page?.body ?? page?.pageText,
-      finalUrl: page?.finalUrl ?? page?.responseUrl ?? page?.url
+      finalUrl: page?.finalUrl ?? page?.responseUrl ?? page?.url,
+      dynamicText: page?.dynamicText,
+      dynamicFinalUrl: page?.dynamicFinalUrl
     });
     if (!parsed.ok) return rejected(currentSnapshot, `Refresh failed for ${existing.symbol}: ${parsed.error}`);
     if (parsed.symbol !== existing.symbol) {
       return rejected(currentSnapshot, `Refresh failed for ${existing.symbol}: the official page ticker does not match the expected fund.`);
     }
-    const factual = (value) => ({ value, status: 'verified', sourceUrl: parsed.sourceUrl, asOf: refreshDate });
+    const factual = (value, sourceUrl = parsed.sourceUrl) => ({ value, status: 'verified', sourceUrl, asOf: refreshDate });
     entries.push({
       ...existing,
       name: parsed.name,
@@ -129,7 +245,7 @@ export function refreshProviderSnapshot({ currentSnapshot, refreshDate, pages } 
       facts: {
         name: factual(parsed.name),
         ticker: factual(parsed.symbol),
-        trailingYield: factual(parsed.trailingYield),
+        trailingYield: factual(parsed.trailingYield, parsed.trailingYieldSourceUrl),
         growth: { ...existing.facts.growth }
       }
     });
