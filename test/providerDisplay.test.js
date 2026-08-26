@@ -44,21 +44,38 @@ test('each rendered provider allocation row has the exact accessible official-so
   } finally { globalThis.document = savedDocument; }
 });
 
-test('provider UI exposes selected default, provider refresh, disclosures, and official sources', async () => {
-  const [html, app] = await Promise.all([
-    readFile(new URL('../index.html', import.meta.url), 'utf8'),
-    readFile(new URL('../app.js', import.meta.url), 'utf8')
+test('provider UI renders complete disclosures for each selected provider snapshot', async () => {
+  const savedDocument = globalThis.document;
+  const savedFetch = globalThis.fetch;
+  const [html] = await Promise.all([
+    readFile(new URL('../index.html', import.meta.url), 'utf8')
   ]);
   assert.match(html, /option value="illustrative" selected/);
   assert.match(html, /id="refresh-data"/);
-  assert.match(app, /illustrative, not financial advice, and is not endorsed by/);
-  assert.match(app, /Official source/);
-  for (const snapshot of [VANGUARD_SNAPSHOT, FIDELITY_SNAPSHOT]) {
-    for (const entry of snapshot.entries) {
-      const source = entry.facts.name.sourceUrl;
-      assert.equal(new URL(source).hostname.endsWith(snapshot.providerId === 'vanguard' ? 'vanguard.com' : 'fidelity.com'), true);
-      assert.equal(entry.facts.name.sourceUrl, source);
+
+  globalThis.document = appDocument();
+  globalThis.fetch = async (url) => {
+    const providerId = url.match(/\/api\/providers\/([^/]+)\/snapshot/)?.[1];
+    const snapshot = providerId === 'vanguard' ? VANGUARD_SNAPSHOT : FIDELITY_SNAPSHOT;
+    return { ok: true, json: async () => ({ ok: true, snapshot }) };
+  };
+  try {
+    await import(`../app.js?provider-disclosure-test=${Date.now()}`);
+    const get = (id) => globalThis.document.getElementById(id);
+    for (const snapshot of [VANGUARD_SNAPSHOT, FIDELITY_SNAPSHOT]) {
+      get('provider-select').value = snapshot.providerId;
+      await get('provider-select').listeners.change();
+
+      const providerName = snapshot.providerId === 'vanguard' ? 'Vanguard' : 'Fidelity';
+      const status = get('provider-status').textContent;
+      assert.match(status, new RegExp(`${providerName} data active as of ${snapshot.asOf}`));
+      assert.match(status, /comparison is illustrative/i);
+      assert.match(status, /not financial advice/i);
+      assert.match(status, new RegExp(`not endorsed by ${providerName}`));
     }
+  } finally {
+    globalThis.document = savedDocument;
+    globalThis.fetch = savedFetch;
   }
 });
 
