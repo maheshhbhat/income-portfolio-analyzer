@@ -6,28 +6,28 @@ Generated from the committed provider snapshots. Every row is a verified fact; g
 | --- | --- | --- | --- | --- | --- |
 | vanguard | VTI | name | Vanguard Total Stock Market ETF | https://investor.vanguard.com/investment-products/etfs/profile/vti | 2026-05-31 |
 | vanguard | VTI | ticker | VTI | https://investor.vanguard.com/investment-products/etfs/profile/vti | 2026-05-31 |
-| vanguard | VTI | trailingYield | 0.0101 | https://investor.vanguard.com/investment-products/etfs/profile/vti | 2026-05-31 |
+| vanguard | VTI | trailingYield | 0.0101 | https://investor.vanguard.com/investment-products/etfs/profile/api/VTI/price | 2026-05-31 |
 | vanguard | VOO | name | Vanguard S&P 500 ETF | https://investor.vanguard.com/investment-products/etfs/profile/voo | 2026-06-30 |
 | vanguard | VOO | ticker | VOO | https://investor.vanguard.com/investment-products/etfs/profile/voo | 2026-06-30 |
-| vanguard | VOO | trailingYield | 0.0103 | https://investor.vanguard.com/investment-products/etfs/profile/voo | 2026-06-30 |
+| vanguard | VOO | trailingYield | 0.0103 | https://investor.vanguard.com/investment-products/etfs/profile/api/VOO/price | 2026-06-30 |
 | vanguard | VYM | name | Vanguard High Dividend Yield ETF | https://investor.vanguard.com/investment-products/etfs/profile/vym | 2026-05-31 |
 | vanguard | VYM | ticker | VYM | https://investor.vanguard.com/investment-products/etfs/profile/vym | 2026-05-31 |
-| vanguard | VYM | trailingYield | 0.0223 | https://investor.vanguard.com/investment-products/etfs/profile/vym | 2026-05-31 |
+| vanguard | VYM | trailingYield | 0.0223 | https://investor.vanguard.com/investment-products/etfs/profile/api/VYM/price | 2026-05-31 |
 | vanguard | VTV | name | Vanguard Value ETF | https://investor.vanguard.com/investment-products/etfs/profile/vtv | 2026-06-30 |
 | vanguard | VTV | ticker | VTV | https://investor.vanguard.com/investment-products/etfs/profile/vtv | 2026-06-30 |
-| vanguard | VTV | trailingYield | 0.0187 | https://investor.vanguard.com/investment-products/etfs/profile/vtv | 2026-06-30 |
+| vanguard | VTV | trailingYield | 0.0187 | https://investor.vanguard.com/investment-products/etfs/profile/api/VTV/price | 2026-06-30 |
 | vanguard | VHT | name | Vanguard Health Care ETF | https://investor.vanguard.com/investment-products/etfs/profile/vht | 2026-05-31 |
 | vanguard | VHT | ticker | VHT | https://investor.vanguard.com/investment-products/etfs/profile/vht | 2026-05-31 |
-| vanguard | VHT | trailingYield | 0.0143 | https://investor.vanguard.com/investment-products/etfs/profile/vht | 2026-05-31 |
+| vanguard | VHT | trailingYield | 0.0143 | https://investor.vanguard.com/investment-products/etfs/profile/api/VHT/price | 2026-05-31 |
 | vanguard | VGT | name | Vanguard Information Technology ETF | https://investor.vanguard.com/investment-products/etfs/profile/vgt | 2026-04-30 |
 | vanguard | VGT | ticker | VGT | https://investor.vanguard.com/investment-products/etfs/profile/vgt | 2026-04-30 |
-| vanguard | VGT | trailingYield | 0.0036 | https://investor.vanguard.com/investment-products/etfs/profile/vgt | 2026-04-30 |
+| vanguard | VGT | trailingYield | 0.0036 | https://investor.vanguard.com/investment-products/etfs/profile/api/VGT/price | 2026-04-30 |
 | vanguard | BND | name | Vanguard Total Bond Market ETF | https://investor.vanguard.com/investment-products/etfs/profile/bnd | 2026-05-19 |
 | vanguard | BND | ticker | BND | https://investor.vanguard.com/investment-products/etfs/profile/bnd | 2026-05-19 |
-| vanguard | BND | trailingYield | 0.0444 | https://investor.vanguard.com/investment-products/etfs/profile/bnd | 2026-05-19 |
+| vanguard | BND | trailingYield | 0.0444 | https://investor.vanguard.com/investment-products/etfs/profile/api/BND/price | 2026-05-19 |
 | vanguard | VGSH | name | Vanguard Short-Term Treasury ETF | https://investor.vanguard.com/investment-products/etfs/profile/vgsh | 2026-06-23 |
 | vanguard | VGSH | ticker | VGSH | https://investor.vanguard.com/investment-products/etfs/profile/vgsh | 2026-06-23 |
-| vanguard | VGSH | trailingYield | 0.0412 | https://investor.vanguard.com/investment-products/etfs/profile/vgsh | 2026-06-23 |
+| vanguard | VGSH | trailingYield | 0.0412 | https://investor.vanguard.com/investment-products/etfs/profile/api/VGSH/price | 2026-06-23 |
 | fidelity | SPAXX | name | Fidelity® Government Money Market Fund | https://fundresearch.fidelity.com/mutual-funds/summary/31617H102 | 2026-08-23 |
 | fidelity | SPAXX | ticker | SPAXX | https://fundresearch.fidelity.com/mutual-funds/summary/31617H102 | 2026-08-23 |
 | fidelity | SPAXX | trailingYield | 0.0332 | https://fundresearch.fidelity.com/mutual-funds/summary/31617H102 | 2026-08-23 |
