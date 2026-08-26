@@ -218,6 +218,22 @@ button[type="submit"]:hover {
   border-top: 1px solid var(--border);
 }
 
+.maximum-withdrawal {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.maximum-withdrawal .section-title {
+  margin-top: 0;
+}
+
+.maximum-withdrawal__disclosure {
+  margin: 1.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .required-portfolio .section-title {
   margin-top: 0;
 }
