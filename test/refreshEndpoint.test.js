@@ -49,6 +49,26 @@ test('verified refresh atomically replaces active snapshot', async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test('Fidelity refresh keeps its request identification provider-neutral', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'provider-refresh-'));
+  const requests = [];
+  try {
+    const handler = createRequestHandler({ root, now: () => '2026-08-26', fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      const entry = FIDELITY_SNAPSHOT.entries.find((item) => item.facts.name.sourceUrl === url);
+      return responseFor(entry, { requestUrl: url });
+    }});
+    const refresh = await request(handler, { method: 'POST', url: '/api/providers/fidelity/refresh' });
+    assert.equal(refresh.status, 200);
+    assert.equal(requests.length, FIDELITY_SNAPSHOT.entries.length);
+    for (const { url, options } of requests) {
+      assert.match(url, /^https:\/\/(?:[^/]+\.)?fidelity\.com\//);
+      assert.equal(options.headers['User-Agent'], 'income-portfolio-analyzer/1.0');
+      assert.doesNotMatch(options.headers['User-Agent'], /vanguard/i);
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('failed refresh leaves persisted last-known-good bytes unchanged', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'provider-refresh-'));
   const runtime = path.join(root, '.runtime', 'provider-snapshots');
@@ -205,7 +225,14 @@ test('opt-in live refresh accepts official Vanguard and Fidelity pages without l
         const source = new URL(sourceUrl);
         assert.equal(source.protocol, 'https:');
         assert.equal(entry.facts.ticker.sourceUrl, sourceUrl);
-        assert.equal(entry.facts.trailingYield.sourceUrl, sourceUrl);
+        if (seed.providerId === 'vanguard') {
+          const yieldSource = new URL(entry.facts.trailingYield.sourceUrl);
+          assert.equal(yieldSource.protocol, 'https:');
+          assert.match(yieldSource.hostname, /(^|\.)vanguard\.com$/);
+          assert.notEqual(entry.facts.trailingYield.sourceUrl, sourceUrl);
+        } else {
+          assert.equal(entry.facts.trailingYield.sourceUrl, sourceUrl);
+        }
         assert.equal(entry.facts.name.asOf, '2026-08-26');
         assert.equal(entry.facts.name.status, 'verified');
         assert.match(source.hostname, seed.providerId === 'vanguard' ? /(^|\.)vanguard\.com$/ : /(^|\.)fidelity\.com$/);

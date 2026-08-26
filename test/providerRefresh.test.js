@@ -68,7 +68,8 @@ test('current Vanguard share-class and Fidelity summary markup read only titled 
   });
   assert.deepEqual(vanguard, {
     ok: true, name: 'Vanguard Total Stock Market ETF', symbol: 'VTI', trailingYield: 0.0101,
-    sourceUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/vti'
+    sourceUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/vti',
+    trailingYieldSourceUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/vti'
   });
 
   const fidelity = parseOfficialProviderPage({
@@ -78,7 +79,8 @@ test('current Vanguard share-class and Fidelity summary markup read only titled 
   });
   assert.deepEqual(fidelity, {
     ok: true, name: 'Fidelity® 500 Index Fund', symbol: 'FXAIX', trailingYield: 0.0104,
-    sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911750'
+    sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911750',
+    trailingYieldSourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911750'
   });
 });
 
@@ -97,7 +99,8 @@ test('Vanguard production fixture obtains VTI yield from its official dynamic re
   });
   assert.equal(result.accepted, true);
   assert.equal(result.snapshot.entries[0].yield, 0.0123);
-  assert.equal(result.snapshot.entries[0].facts.trailingYield.sourceUrl, VANGUARD_SNAPSHOT.entries[0].facts.name.sourceUrl);
+  assert.equal(result.snapshot.entries[0].facts.name.sourceUrl, VANGUARD_SNAPSHOT.entries[0].facts.name.sourceUrl);
+  assert.equal(result.snapshot.entries[0].facts.trailingYield.sourceUrl, 'https://investor.vanguard.com/investment-products/etfs/profile/api/VTI/price');
 });
 
 test('Vanguard dynamic yield rejects malformed, unlabelled, and cross-domain responses', () => {

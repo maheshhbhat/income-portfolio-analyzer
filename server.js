@@ -69,7 +69,9 @@ export function createRequestHandler({ root = ROOT, fetchImpl = globalThis.fetch
     const pages = {};
     try {
       for (const entry of currentSnapshot.entries) {
-        const requestOptions = { headers: { 'User-Agent': 'income-portfolio-analyzer/1.0 (+https://investor.vanguard.com/)' } };
+        // This identifies our client without attributing Fidelity traffic to
+        // Vanguard. The same neutral option is safe for either provider.
+        const requestOptions = { headers: { 'User-Agent': 'income-portfolio-analyzer/1.0' } };
         const response = await fetchImpl(entry.facts.name.sourceUrl, requestOptions);
         if (!response?.ok) return { ok: false, status: 502, error: `Refresh failed for ${entry.symbol}: the official source returned HTTP ${response?.status ?? 'an invalid response'}.` };
         if (!isOfficialResponseUrl(response.url, id)) return { ok: false, status: 422, error: `Refresh failed for ${entry.symbol}: the final response URL must remain on the official ${id} domain.` };

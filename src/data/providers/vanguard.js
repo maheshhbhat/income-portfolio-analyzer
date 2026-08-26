@@ -4,6 +4,7 @@
 // an illustrative estimate, not a provider-verified forecast.
 
 const profileUrl = (symbol) => `https://investor.vanguard.com/investment-products/etfs/profile/${symbol.toLowerCase()}`;
+const dynamicYieldUrl = (symbol) => `https://investor.vanguard.com/investment-products/etfs/profile/api/${encodeURIComponent(symbol)}/price`;
 
 function verified(value, sourceUrl, asOf) {
   return { value, status: 'verified', sourceUrl, asOf };
@@ -20,7 +21,7 @@ function fund({ symbol, name, yield: trailingYield, yieldAsOf, growthRate }) {
     facts: {
       name: verified(name, sourceUrl, yieldAsOf),
       ticker: verified(symbol, sourceUrl, yieldAsOf),
-      trailingYield: verified(trailingYield, sourceUrl, yieldAsOf),
+      trailingYield: verified(trailingYield, dynamicYieldUrl(symbol), yieldAsOf),
       growth: { value: growthRate, status: 'illustrative-estimate' }
     }
   };

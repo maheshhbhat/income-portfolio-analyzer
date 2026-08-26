@@ -193,7 +193,18 @@ export function parseOfficialProviderPage({ providerId, text, finalUrl, dynamicT
   if (!name || !symbol || name === symbol || trailingYield === null) {
     return { ok: false, error: 'The official response does not contain verifiable name, ticker, and trailing yield facts.' };
   }
-  return { ok: true, name, symbol, trailingYield, sourceUrl: finalUrl };
+  return {
+    ok: true,
+    name,
+    symbol,
+    trailingYield,
+    // The profile remains the provenance for identity and the user-facing
+    // official link. Vanguard's yield is instead verified exclusively from
+    // its separate dynamic response, so preserve that response URL for the
+    // yield fact rather than making the profile claim a fact it did not show.
+    sourceUrl: finalUrl,
+    trailingYieldSourceUrl: dynamicYield !== undefined ? dynamicFinalUrl : finalUrl
+  };
 }
 
 function rejected(currentSnapshot, error) {
@@ -226,7 +237,7 @@ export function refreshProviderSnapshot({ currentSnapshot, refreshDate, pages } 
     if (parsed.symbol !== existing.symbol) {
       return rejected(currentSnapshot, `Refresh failed for ${existing.symbol}: the official page ticker does not match the expected fund.`);
     }
-    const factual = (value) => ({ value, status: 'verified', sourceUrl: parsed.sourceUrl, asOf: refreshDate });
+    const factual = (value, sourceUrl = parsed.sourceUrl) => ({ value, status: 'verified', sourceUrl, asOf: refreshDate });
     entries.push({
       ...existing,
       name: parsed.name,
@@ -234,7 +245,7 @@ export function refreshProviderSnapshot({ currentSnapshot, refreshDate, pages } 
       facts: {
         name: factual(parsed.name),
         ticker: factual(parsed.symbol),
-        trailingYield: factual(parsed.trailingYield),
+        trailingYield: factual(parsed.trailingYield, parsed.trailingYieldSourceUrl),
         growth: { ...existing.facts.growth }
       }
     });
