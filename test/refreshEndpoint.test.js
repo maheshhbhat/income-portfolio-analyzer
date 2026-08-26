@@ -9,8 +9,20 @@ import { createRequestHandler, createServer } from '../server.js';
 import { FIDELITY_SNAPSHOT } from '../src/data/providers/fidelity.js';
 import { VANGUARD_SNAPSHOT } from '../src/data/providers/vanguard.js';
 
-function responseFor(entry, { ok = true, url = entry.facts.name.sourceUrl, text } = {}) {
-  return { ok, status: ok ? 200 : 503, url, text: async () => text ?? `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(entry.yield * 100).toFixed(4)}%` };
+function responseFor(entry, { ok = true, url, text, requestUrl } = {}) {
+  const dynamic = requestUrl?.includes('/etfs/profile/api/');
+  return {
+    ok, status: ok ? 200 : 503, url: url ?? requestUrl ?? entry.facts.name.sourceUrl,
+    text: async () => text ?? (dynamic
+      ? JSON.stringify({ currentPrice: { yield: { yieldPct: `${(entry.yield * 100).toFixed(4)}%` } } })
+      : `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(entry.yield * 100).toFixed(4)}%`)
+  };
+}
+
+function vanguardEntryFor(url) {
+  return VANGUARD_SNAPSHOT.entries.find((entry) => (
+    entry.facts.name.sourceUrl === url || url.endsWith(`/api/${entry.symbol}/price`)
+  ));
 }
 
 async function request(handler, { method, url, body } = {}) {
@@ -28,8 +40,7 @@ test('verified refresh atomically replaces active snapshot', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'provider-refresh-'));
   try {
     const handler = createRequestHandler({ root, now: () => '2026-08-26', fetchImpl: async (url) => {
-      const entry = VANGUARD_SNAPSHOT.entries.find((item) => item.facts.name.sourceUrl === url);
-      return responseFor(entry);
+      return responseFor(vanguardEntryFor(url), { requestUrl: url });
     }});
     const refresh = await request(handler, { method: 'POST', url: '/api/providers/vanguard/refresh' });
     assert.equal(refresh.status, 200);
@@ -47,7 +58,7 @@ test('failed refresh leaves persisted last-known-good bytes unchanged', async ()
     await mkdir(runtime, { recursive: true });
     await writeFile(target, JSON.stringify(VANGUARD_SNAPSHOT));
     const before = await readFile(target, 'utf8');
-    const handler = createRequestHandler({ root, fetchImpl: async (url) => responseFor(VANGUARD_SNAPSHOT.entries.find((item) => item.facts.name.sourceUrl === url), { url: 'https://example.com/not-official' }) });
+    const handler = createRequestHandler({ root, fetchImpl: async (url) => responseFor(vanguardEntryFor(url), { requestUrl: url, url: 'https://example.com/not-official' }) });
     const refresh = await request(handler, { method: 'POST', url: '/api/providers/vanguard/refresh' });
     assert.equal(refresh.status, 422);
     assert.match(refresh.payload.error, /final response URL/i);
@@ -92,7 +103,7 @@ async function assertRejectedRefresh({ name, fetchImpl, status, error }) {
 }
 
 test('refresh failure classes preserve the exact last-known-good snapshot', async (t) => {
-  const entryFor = (url) => VANGUARD_SNAPSHOT.entries.find((item) => item.facts.name.sourceUrl === url);
+  const entryFor = vanguardEntryFor;
   const cases = [
     {
       name: 'network failure', status: 502, error: /unable to reach/i,
@@ -100,23 +111,23 @@ test('refresh failure classes preserve the exact last-known-good snapshot', asyn
     },
     {
       name: 'non-success response', status: 502, error: /HTTP 503/i,
-      fetchImpl: async (url) => responseFor(entryFor(url), { ok: false })
+      fetchImpl: async (url) => responseFor(entryFor(url), { ok: false, requestUrl: url })
     },
     {
-      name: 'malformed response content', status: 422, error: /does not contain verifiable/i,
-      fetchImpl: async (url) => responseFor(entryFor(url), { text: '<html>not fund facts</html>' })
+      name: 'malformed response content', status: 422, error: /does not contain (?:verifiable|one explicitly labeled)/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, text: url.includes('/api/') ? '{bad json' : '<html>not fund facts</html>' })
     },
     {
-      name: 'partial response content', status: 422, error: /does not contain verifiable/i,
-      fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}` })
+      name: 'partial response content', status: 422, error: /does not contain (?:verifiable|one explicitly labeled)/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, text: url.includes('/api/') ? JSON.stringify({ currentPrice: {} }) : `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}` })
     },
     {
-      name: 'unverifiable factual value', status: 422, error: /does not contain verifiable/i,
-      fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}\nTrailing yield: unknown` })
+      name: 'unverifiable factual value', status: 422, error: /does not contain (?:verifiable|one explicitly labeled)/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, text: url.includes('/api/') ? JSON.stringify({ currentPrice: { yield: { yieldPct: 'unknown' } } }) : `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}\nTrailing yield: unknown` })
     },
     {
       name: 'cross-provider redirect to Fidelity', status: 422, error: /final response URL/i,
-      fetchImpl: async (url) => responseFor(entryFor(url), {
+      fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url,
         url: FIDELITY_SNAPSHOT.entries[0].facts.name.sourceUrl
       })
     }

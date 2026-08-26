@@ -128,6 +128,33 @@ function pageForSymbol(pages, symbol) {
   return isRecord(pages) ? pages[symbol] : undefined;
 }
 
+function vanguardDynamicYield(text) {
+  // Vanguard's profile shell renders the yield card client-side.  The
+  // price component is the same official data response used by that card;
+  // accept only its named yield field, never a number found elsewhere in
+  // JSON or markup.
+  try {
+    // A duplicate named field is ambiguous even if JSON.parse would silently
+    // retain the final value.  Count the exact field token before parsing.
+    if ((text.match(/"yieldPct"\s*:/g) ?? []).length !== 1) return null;
+    const payload = JSON.parse(text);
+    const yieldFact = payload?.currentPrice?.yield;
+    if (!isRecord(yieldFact) || !Object.hasOwn(yieldFact, 'yieldPct')) return null;
+    // `yieldPct` is Vanguard's explicitly named percent-points field (for
+    // example, "1.01" means 1.01%, not a decimal ratio).  Accept a display
+    // percent sign if Vanguard supplies one, but use the field semantics in
+    // either case rather than treating an unrelated bare JSON number as a
+    // ratio.
+    const value = String(yieldFact.yieldPct).trim();
+    const match = value.match(/^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*%?$/);
+    if (!match) return null;
+    const percentagePoints = Number(match[1]);
+    return Number.isFinite(percentagePoints) ? percentagePoints / 100 : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parses a supplied official-page response. Supported factual markers are
  * `fund-name`, `ticker`/`symbol`, and `trailing-yield`/`30-day-sec-yield`,
@@ -135,7 +162,7 @@ function pageForSymbol(pages, symbol) {
  * Values are returned only when all three can be read from the supplied text
  * and the final URL is on the selected provider's official HTTPS host.
  */
-export function parseOfficialProviderPage({ providerId, text, finalUrl } = {}) {
+export function parseOfficialProviderPage({ providerId, text, finalUrl, dynamicText, dynamicFinalUrl } = {}) {
   if (!Object.hasOwn(PROVIDER_OFFICIAL_HOSTS, providerId)) {
     return { ok: false, error: 'A supported provider id is required to parse a refresh page.' };
   }
@@ -156,7 +183,13 @@ export function parseOfficialProviderPage({ providerId, text, finalUrl } = {}) {
   const observedYield = providerId === 'vanguard'
     ? valueBesideLabel(flattened, ['30 day SEC yield'])
     : valueBesideLabel(flattened, ['30-Day Yield', '7-Day Yield']);
-  const trailingYield = parseYield(observedYield ?? fieldFromText(text, ['trailing-yield', 'trailing_yield', '30-day-sec-yield']));
+  const dynamicYield = providerId === 'vanguard' && dynamicText !== undefined
+    ? (isOfficialFinalUrl(dynamicFinalUrl, providerId) ? vanguardDynamicYield(dynamicText) : null)
+    : undefined;
+  const trailingYield = dynamicYield ?? parseYield(observedYield ?? fieldFromText(text, ['trailing-yield', 'trailing_yield', '30-day-sec-yield']));
+  if (providerId === 'vanguard' && dynamicText !== undefined && dynamicYield === null) {
+    return { ok: false, error: 'The official Vanguard dynamic response does not contain one explicitly labeled trailing-yield fact.' };
+  }
   if (!name || !symbol || name === symbol || trailingYield === null) {
     return { ok: false, error: 'The official response does not contain verifiable name, ticker, and trailing yield facts.' };
   }
@@ -185,7 +218,9 @@ export function refreshProviderSnapshot({ currentSnapshot, refreshDate, pages } 
     const parsed = parseOfficialProviderPage({
       providerId,
       text: page?.text ?? page?.body ?? page?.pageText,
-      finalUrl: page?.finalUrl ?? page?.responseUrl ?? page?.url
+      finalUrl: page?.finalUrl ?? page?.responseUrl ?? page?.url,
+      dynamicText: page?.dynamicText,
+      dynamicFinalUrl: page?.dynamicFinalUrl
     });
     if (!parsed.ok) return rejected(currentSnapshot, `Refresh failed for ${existing.symbol}: ${parsed.error}`);
     if (parsed.symbol !== existing.symbol) {

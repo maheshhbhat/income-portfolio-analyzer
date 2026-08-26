@@ -110,12 +110,15 @@ test('provider hardening keeps the zero-dependency and integer-cent contracts', 
   assert.ok(required.allocation.every((line) => Number.isInteger(line.amountCents)));
 });
 
-function responseFor(entry, { ok = true, url = entry.facts.name.sourceUrl, text } = {}) {
+function responseFor(entry, { ok = true, url, text, requestUrl } = {}) {
+  const dynamic = requestUrl?.includes('/etfs/profile/api/');
   return {
     ok,
     status: ok ? 200 : 503,
-    url,
-    text: async () => text ?? `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(entry.yield * 100).toFixed(4)}%`
+    url: url ?? requestUrl ?? entry.facts.name.sourceUrl,
+    text: async () => text ?? (dynamic
+      ? JSON.stringify({ currentPrice: { yield: { yieldPct: `${(entry.yield * 100).toFixed(4)}%` } } })
+      : `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(entry.yield * 100).toFixed(4)}%`)
   };
 }
 
@@ -145,14 +148,14 @@ async function seedLastKnownGood(root) {
 }
 
 test('production refresh handler rejects every failure class without mutating the active snapshot', async (t) => {
-  const entryFor = (url) => VANGUARD_SNAPSHOT.entries.find((entry) => entry.facts.name.sourceUrl === url);
+  const entryFor = (url) => VANGUARD_SNAPSHOT.entries.find((entry) => entry.facts.name.sourceUrl === url || url.endsWith(`/api/${entry.symbol}/price`));
   const cases = [
     { name: 'network failure', status: 502, error: /unable to reach/i, fetchImpl: async () => { throw new Error('offline'); } },
-    { name: 'non-success HTTP response', status: 502, error: /HTTP 503/i, fetchImpl: async (url) => responseFor(entryFor(url), { ok: false }) },
-    { name: 'malformed content', status: 422, error: /does not contain verifiable/i, fetchImpl: async (url) => responseFor(entryFor(url), { text: '<html>not fund facts</html>' }) },
-    { name: 'partial content', status: 422, error: /does not contain verifiable/i, fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}` }) },
-    { name: 'unverifiable factual value', status: 422, error: /does not contain verifiable/i, fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}\nTrailing yield: unknown` }) },
-    { name: 'cross-provider final URL', status: 422, error: /final response URL/i, fetchImpl: async (url) => responseFor(entryFor(url), { url: FIDELITY_SNAPSHOT.entries[0].facts.name.sourceUrl }) }
+    { name: 'non-success HTTP response', status: 502, error: /HTTP 503/i, fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, ok: false }) },
+    { name: 'malformed content', status: 422, error: /does not contain (?:verifiable|one explicitly labeled)/i, fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, text: url.includes('/api/') ? '{bad json' : '<html>not fund facts</html>' }) },
+    { name: 'partial content', status: 422, error: /does not contain (?:verifiable|one explicitly labeled)/i, fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, text: url.includes('/api/') ? JSON.stringify({ currentPrice: {} }) : `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}` }) },
+    { name: 'unverifiable factual value', status: 422, error: /does not contain (?:verifiable|one explicitly labeled)/i, fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, text: url.includes('/api/') ? JSON.stringify({ currentPrice: { yield: { yieldPct: 'unknown' } } }) : `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}\nTrailing yield: unknown` }) },
+    { name: 'cross-provider final URL', status: 422, error: /final response URL/i, fetchImpl: async (url) => responseFor(entryFor(url), { requestUrl: url, url: FIDELITY_SNAPSHOT.entries[0].facts.name.sourceUrl }) }
   ];
 
   for (const scenario of cases) await t.test(scenario.name, async () => {
@@ -198,8 +201,11 @@ test('production refresh handler atomically accepts fully verifiable Vanguard an
         root,
         now: () => refreshDate,
         fetchImpl: async (url) => {
-          const entry = seed.entries.find((item) => item.facts.name.sourceUrl === url);
-          return verifiedResponseFor(entry, refreshedYields.get(url));
+          const entry = seed.entries.find((item) => item.facts.name.sourceUrl === url || url.endsWith(`/api/${item.symbol}/price`));
+          const refreshYield = refreshedYields.get(entry.facts.name.sourceUrl);
+          return responseFor(entry, { requestUrl: url, text: url.includes('/api/')
+            ? JSON.stringify({ currentPrice: { yield: { yieldPct: `${(refreshYield * 100).toFixed(4)}%` } } })
+            : `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(refreshYield * 100).toFixed(4)}%` });
         },
         fsOps: { mkdir, readFile, unlink, writeFile, rename: async (...args) => { renameCalls += 1; return rename(...args); } }
       });

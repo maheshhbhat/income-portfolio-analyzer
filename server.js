@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { FIDELITY_SNAPSHOT } from './src/data/providers/fidelity.js';
 import { SUPPORTED_PROVIDER_IDS } from './src/data/providers/index.js';
 import { VANGUARD_SNAPSHOT } from './src/data/providers/vanguard.js';
+import { PROVIDER_OFFICIAL_HOSTS, validateProviderSnapshot } from './src/lib/providerFacts.js';
 import { refreshProviderSnapshot } from './src/lib/providerRefresh.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,16 @@ const CONTENT_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javasc
 const SEEDS = Object.freeze({ vanguard: VANGUARD_SNAPSHOT, fidelity: FIDELITY_SNAPSHOT });
 const supportedError = (id) => `Unsupported provider${id ? ` \"${id}\"` : ''}. Choose one of: illustrative, ${SUPPORTED_PROVIDER_IDS.join(', ')}.`;
 const dateToday = () => new Date().toISOString().slice(0, 10);
+const vanguardDynamicYieldUrl = (symbol) => `https://investor.vanguard.com/investment-products/etfs/profile/api/${encodeURIComponent(symbol)}/price`;
+
+function isOfficialResponseUrl(value, providerId) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && PROVIDER_OFFICIAL_HOSTS[providerId]?.includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 function readRequestBody(req) {
   return new Promise((resolve, reject) => {
@@ -52,12 +63,25 @@ export function createRequestHandler({ root = ROOT, fetchImpl = globalThis.fetch
   async function refresh(id, refreshDate) {
     if (!SUPPORTED_PROVIDER_IDS.includes(id)) return { ok: false, status: 400, error: supportedError(id) };
     const currentSnapshot = await activeSnapshot(id);
+    if (!validateProviderSnapshot(currentSnapshot).ok) {
+      return { ok: false, status: 422, error: 'The current provider snapshot is invalid and cannot be refreshed safely.' };
+    }
     const pages = {};
     try {
       for (const entry of currentSnapshot.entries) {
-        const response = await fetchImpl(entry.facts.name.sourceUrl);
+        const requestOptions = { headers: { 'User-Agent': 'income-portfolio-analyzer/1.0 (+https://investor.vanguard.com/)' } };
+        const response = await fetchImpl(entry.facts.name.sourceUrl, requestOptions);
         if (!response?.ok) return { ok: false, status: 502, error: `Refresh failed for ${entry.symbol}: the official source returned HTTP ${response?.status ?? 'an invalid response'}.` };
-        pages[entry.symbol] = { finalUrl: response.url, text: await response.text() };
+        if (!isOfficialResponseUrl(response.url, id)) return { ok: false, status: 422, error: `Refresh failed for ${entry.symbol}: the final response URL must remain on the official ${id} domain.` };
+        const page = { finalUrl: response.url, text: await response.text() };
+        if (id === 'vanguard') {
+          const dynamicResponse = await fetchImpl(vanguardDynamicYieldUrl(entry.symbol), requestOptions);
+          if (!dynamicResponse?.ok) return { ok: false, status: 502, error: `Refresh failed for ${entry.symbol}: the official Vanguard yield source returned HTTP ${dynamicResponse?.status ?? 'an invalid response'}.` };
+          if (!isOfficialResponseUrl(dynamicResponse.url, id)) return { ok: false, status: 422, error: `Refresh failed for ${entry.symbol}: the final response URL must remain on the official ${id} domain.` };
+          page.dynamicFinalUrl = dynamicResponse.url;
+          page.dynamicText = await dynamicResponse.text();
+        }
+        pages[entry.symbol] = page;
       }
     } catch {
       return { ok: false, status: 502, error: `Refresh failed: unable to reach the official ${id} source. Check your connection and try again.` };

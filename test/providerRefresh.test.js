@@ -7,7 +7,13 @@ import { parseOfficialProviderPage, refreshProviderSnapshot } from '../src/lib/p
 function pagesFor(snapshot) {
   return Object.fromEntries(snapshot.entries.map((entry) => [entry.symbol, {
     finalUrl: entry.facts.name.sourceUrl,
-    text: `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(entry.yield * 100).toFixed(4)}%`
+    text: snapshot.providerId === 'vanguard'
+      ? `<title>${entry.symbol}-${entry.name} | Vanguard</title>`
+      : `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(entry.yield * 100).toFixed(4)}%`,
+    ...(snapshot.providerId === 'vanguard' ? {
+      dynamicFinalUrl: `https://investor.vanguard.com/investment-products/etfs/profile/api/${entry.symbol}/price`,
+      dynamicText: JSON.stringify({ currentPrice: { yield: { yieldPct: `${(entry.yield * 100).toFixed(4)}%` } } })
+    } : {})
   }]));
 }
 
@@ -74,6 +80,37 @@ test('current Vanguard share-class and Fidelity summary markup read only titled 
     ok: true, name: 'Fidelity® 500 Index Fund', symbol: 'FXAIX', trailingYield: 0.0104,
     sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911750'
   });
+});
+
+test('Vanguard production fixture obtains VTI yield from its official dynamic response, not the profile shell', () => {
+  const result = refreshProviderSnapshot({
+    currentSnapshot: { ...VANGUARD_SNAPSHOT, entries: [VANGUARD_SNAPSHOT.entries[0]] },
+    refreshDate: '2026-08-25',
+    pages: {
+      VTI: {
+        finalUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/vti',
+        text: '<title>VTI-Vanguard Total Stock Market ETF | Vanguard</title><main>Fund title only; no yield is present.</main>',
+        dynamicFinalUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/api/VTI/price',
+        dynamicText: '{"currentPrice":{"yield":{"yieldPct":"1.23"}}}'
+      }
+    }
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.snapshot.entries[0].yield, 0.0123);
+  assert.equal(result.snapshot.entries[0].facts.trailingYield.sourceUrl, VANGUARD_SNAPSHOT.entries[0].facts.name.sourceUrl);
+});
+
+test('Vanguard dynamic yield rejects malformed, unlabelled, and cross-domain responses', () => {
+  const page = pagesFor(VANGUARD_SNAPSHOT).VTI;
+  for (const patch of [
+    { dynamicText: '{not json' },
+    { dynamicText: '{"currentPrice":{"yield":{"otherPct":"1.01%"}}}' },
+    { dynamicText: '{"currentPrice":{"yield":{"yieldPct":"1.01","yieldPct":"2.02"}}}' },
+    { dynamicFinalUrl: 'https://example.com/yield' }
+  ]) {
+    const result = parseOfficialProviderPage({ providerId: 'vanguard', ...page, ...patch });
+    assert.equal(result.ok, false);
+  }
 });
 
 test('label/value swaps, nearby numbers, and ticker-as-name candidates fail closed', () => {
