@@ -28,30 +28,30 @@ Generated from the committed provider snapshots. Every row is a verified fact; g
 | vanguard | VGSH | name | Vanguard Short-Term Treasury ETF | https://investor.vanguard.com/investment-products/etfs/profile/vgsh | 2026-06-23 |
 | vanguard | VGSH | ticker | VGSH | https://investor.vanguard.com/investment-products/etfs/profile/vgsh | 2026-06-23 |
 | vanguard | VGSH | trailingYield | 0.0412 | https://investor.vanguard.com/investment-products/etfs/profile/vgsh | 2026-06-23 |
-| fidelity | SPAXX | name | Fidelity Government Money Market Fund | https://fundresearch.fidelity.com/mutual-funds/summary/31617H102 | 2026-08-23 |
+| fidelity | SPAXX | name | Fidelity® Government Money Market Fund | https://fundresearch.fidelity.com/mutual-funds/summary/31617H102 | 2026-08-23 |
 | fidelity | SPAXX | ticker | SPAXX | https://fundresearch.fidelity.com/mutual-funds/summary/31617H102 | 2026-08-23 |
 | fidelity | SPAXX | trailingYield | 0.0332 | https://fundresearch.fidelity.com/mutual-funds/summary/31617H102 | 2026-08-23 |
-| fidelity | FXNAX | name | Fidelity U.S. Bond Index Fund | https://fundresearch.fidelity.com/mutual-funds/summary/316146356 | 2026-08-20 |
+| fidelity | FXNAX | name | Fidelity® U.S. Bond Index Fund | https://fundresearch.fidelity.com/mutual-funds/summary/316146356 | 2026-08-20 |
 | fidelity | FXNAX | ticker | FXNAX | https://fundresearch.fidelity.com/mutual-funds/summary/316146356 | 2026-08-20 |
 | fidelity | FXNAX | trailingYield | 0.0463 | https://fundresearch.fidelity.com/mutual-funds/summary/316146356 | 2026-08-20 |
-| fidelity | FCBFX | name | Fidelity Corporate Bond Fund | https://fundresearch.fidelity.com/mutual-funds/summary/316146596 | 2026-08-20 |
+| fidelity | FCBFX | name | Fidelity® Corporate Bond Fund | https://fundresearch.fidelity.com/mutual-funds/summary/316146596 | 2026-08-20 |
 | fidelity | FCBFX | ticker | FCBFX | https://fundresearch.fidelity.com/mutual-funds/summary/316146596 | 2026-08-20 |
 | fidelity | FCBFX | trailingYield | 0.052 | https://fundresearch.fidelity.com/mutual-funds/summary/316146596 | 2026-08-20 |
-| fidelity | FFRHX | name | Fidelity Floating Rate High Income Fund | https://fundresearch.fidelity.com/mutual-funds/summary/315916783 | 2026-08-19 |
+| fidelity | FFRHX | name | Fidelity® Floating Rate High Income Fund | https://fundresearch.fidelity.com/mutual-funds/summary/315916783 | 2026-08-19 |
 | fidelity | FFRHX | ticker | FFRHX | https://fundresearch.fidelity.com/mutual-funds/summary/315916783 | 2026-08-19 |
 | fidelity | FFRHX | trailingYield | 0.0681 | https://fundresearch.fidelity.com/mutual-funds/summary/315916783 | 2026-08-19 |
-| fidelity | FSDIX | name | Fidelity Strategic Dividend & Income Fund | https://fundresearch.fidelity.com/mutual-funds/summary/316145887 | 2026-08-20 |
+| fidelity | FSDIX | name | Fidelity® Strategic Dividend & Income® Fund | https://fundresearch.fidelity.com/mutual-funds/summary/316145887 | 2026-08-20 |
 | fidelity | FSDIX | ticker | FSDIX | https://fundresearch.fidelity.com/mutual-funds/summary/316145887 | 2026-08-20 |
 | fidelity | FSDIX | trailingYield | 0.0227 | https://fundresearch.fidelity.com/mutual-funds/summary/316145887 | 2026-08-20 |
-| fidelity | FSKAX | name | Fidelity Total Market Index Fund | https://fundresearch.fidelity.com/mutual-funds/view-all/315911693 | 2026-08-21 |
-| fidelity | FSKAX | ticker | FSKAX | https://fundresearch.fidelity.com/mutual-funds/view-all/315911693 | 2026-08-21 |
-| fidelity | FSKAX | trailingYield | 0.0092 | https://fundresearch.fidelity.com/mutual-funds/view-all/315911693 | 2026-08-21 |
-| fidelity | FXAIX | name | Fidelity 500 Index Fund | https://fundresearch.fidelity.com/mutual-funds/view-all/315911750 | 2026-08-20 |
-| fidelity | FXAIX | ticker | FXAIX | https://fundresearch.fidelity.com/mutual-funds/view-all/315911750 | 2026-08-20 |
-| fidelity | FXAIX | trailingYield | 0.0104 | https://fundresearch.fidelity.com/mutual-funds/view-all/315911750 | 2026-08-20 |
-| fidelity | FSPSX | name | Fidelity International Index Fund | https://fundresearch.fidelity.com/mutual-funds/view-all/315911727 | 2026-08-21 |
-| fidelity | FSPSX | ticker | FSPSX | https://fundresearch.fidelity.com/mutual-funds/view-all/315911727 | 2026-08-21 |
-| fidelity | FSPSX | trailingYield | 0.0275 | https://fundresearch.fidelity.com/mutual-funds/view-all/315911727 | 2026-08-21 |
+| fidelity | FSKAX | name | Fidelity® Total Market Index Fund | https://fundresearch.fidelity.com/mutual-funds/summary/315911693 | 2026-08-21 |
+| fidelity | FSKAX | ticker | FSKAX | https://fundresearch.fidelity.com/mutual-funds/summary/315911693 | 2026-08-21 |
+| fidelity | FSKAX | trailingYield | 0.0092 | https://fundresearch.fidelity.com/mutual-funds/summary/315911693 | 2026-08-21 |
+| fidelity | FXAIX | name | Fidelity® 500 Index Fund | https://fundresearch.fidelity.com/mutual-funds/summary/315911750 | 2026-08-20 |
+| fidelity | FXAIX | ticker | FXAIX | https://fundresearch.fidelity.com/mutual-funds/summary/315911750 | 2026-08-20 |
+| fidelity | FXAIX | trailingYield | 0.0104 | https://fundresearch.fidelity.com/mutual-funds/summary/315911750 | 2026-08-20 |
+| fidelity | FSPSX | name | Fidelity® International Index Fund | https://fundresearch.fidelity.com/mutual-funds/summary/315911727 | 2026-08-21 |
+| fidelity | FSPSX | ticker | FSPSX | https://fundresearch.fidelity.com/mutual-funds/summary/315911727 | 2026-08-21 |
+| fidelity | FSPSX | trailingYield | 0.0275 | https://fundresearch.fidelity.com/mutual-funds/summary/315911727 | 2026-08-21 |
 
 ## Opt-in live refresh acceptance
 

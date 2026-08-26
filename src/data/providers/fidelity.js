@@ -1,8 +1,8 @@
 // Curated Fidelity seed snapshot. Identity and yield facts were read from the
-// recorded Fidelity Fund Research pages on 2026-08-25. Growth rates are
+// recorded Fidelity Fund Research pages on 2026-08-26. Growth rates are
 // intentionally conservative illustrative estimates, not provider forecasts.
 
-const readDate = '2026-08-25';
+const readDate = '2026-08-26';
 
 function verified(value, sourceUrl, asOf) {
   return { value, status: 'verified', sourceUrl, asOf };
@@ -33,7 +33,7 @@ export const FIDELITY_SNAPSHOT = Object.freeze({
   entries: Object.freeze([
     entry({
       symbol: 'SPAXX',
-      name: 'Fidelity Government Money Market Fund',
+      name: 'Fidelity® Government Money Market Fund',
       type: 'money-market',
       yield: 0.0332,
       growthRate: 0.001,
@@ -42,7 +42,7 @@ export const FIDELITY_SNAPSHOT = Object.freeze({
     }),
     entry({
       symbol: 'FXNAX',
-      name: 'Fidelity U.S. Bond Index Fund',
+      name: 'Fidelity® U.S. Bond Index Fund',
       type: 'bond-index-fund',
       yield: 0.0463,
       growthRate: 0.005,
@@ -51,7 +51,7 @@ export const FIDELITY_SNAPSHOT = Object.freeze({
     }),
     entry({
       symbol: 'FCBFX',
-      name: 'Fidelity Corporate Bond Fund',
+      name: 'Fidelity® Corporate Bond Fund',
       type: 'bond-fund',
       yield: 0.052,
       growthRate: 0.005,
@@ -60,7 +60,7 @@ export const FIDELITY_SNAPSHOT = Object.freeze({
     }),
     entry({
       symbol: 'FFRHX',
-      name: 'Fidelity Floating Rate High Income Fund',
+      name: 'Fidelity® Floating Rate High Income Fund',
       type: 'high-yield-bond-fund',
       yield: 0.0681,
       growthRate: 0.01,
@@ -69,7 +69,7 @@ export const FIDELITY_SNAPSHOT = Object.freeze({
     }),
     entry({
       symbol: 'FSDIX',
-      name: 'Fidelity Strategic Dividend & Income Fund',
+      name: 'Fidelity® Strategic Dividend & Income® Fund',
       type: 'income-allocation-fund',
       yield: 0.0227,
       growthRate: 0.04,
@@ -78,29 +78,29 @@ export const FIDELITY_SNAPSHOT = Object.freeze({
     }),
     entry({
       symbol: 'FSKAX',
-      name: 'Fidelity Total Market Index Fund',
+      name: 'Fidelity® Total Market Index Fund',
       type: 'total-market-index-fund',
       yield: 0.0092,
       growthRate: 0.06,
-      sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/view-all/315911693',
+      sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911693',
       asOf: '2026-08-21'
     }),
     entry({
       symbol: 'FXAIX',
-      name: 'Fidelity 500 Index Fund',
+      name: 'Fidelity® 500 Index Fund',
       type: 'large-cap-index-fund',
       yield: 0.0104,
       growthRate: 0.06,
-      sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/view-all/315911750',
+      sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911750',
       asOf: '2026-08-20'
     }),
     entry({
       symbol: 'FSPSX',
-      name: 'Fidelity International Index Fund',
+      name: 'Fidelity® International Index Fund',
       type: 'international-index-fund',
       yield: 0.0275,
       growthRate: 0.05,
-      sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/view-all/315911727',
+      sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911727',
       asOf: '2026-08-21'
     })
   ])
