@@ -146,6 +146,63 @@
       </table>
     </section>
 
+    <section class="maximum-withdrawal" aria-labelledby="maximum-withdrawal-title">
+      <h2 id="maximum-withdrawal-title" class="section-title">Maximum sustainable withdrawal</h2>
+      <p class="page__subtitle">
+        Enter a starting portfolio, retirement horizon, and inflation rate to calculate
+        the highest verified first-year annual withdrawal this illustrative model can
+        sustain using this repository's curated securities.
+      </p>
+
+      <form id="maximum-withdrawal-form" class="form" novalidate>
+        <div class="form__field">
+          <label for="maximum-portfolio">Starting portfolio ($)</label>
+          <input type="number" id="maximum-portfolio" name="maximumPortfolio" min="0.01" step="0.01" placeholder="500000" required />
+        </div>
+        <div class="form__field">
+          <label for="maximum-horizon">Retirement horizon (years)</label>
+          <input type="number" id="maximum-horizon" name="maximumHorizon" min="1" step="1" placeholder="30" required />
+        </div>
+        <div class="form__field">
+          <label for="maximum-inflation">Inflation rate (%/yr)</label>
+          <input type="number" id="maximum-inflation" name="maximumInflation" min="0" step="0.1" value="3" required />
+        </div>
+        <button type="submit">Calculate maximum withdrawal</button>
+      </form>
+
+      <p id="maximum-withdrawal-error" class="error" role="alert" hidden></p>
+      <p id="maximum-withdrawal-refusal" class="banner banner--warn" role="alert" hidden></p>
+
+      <section id="maximum-withdrawal-results" class="results" hidden aria-live="polite">
+        <p id="maximum-withdrawal-banner" class="banner banner--success" hidden></p>
+        <div class="summary">
+          <div class="summary__stat">
+            <span class="summary__label">Verified maximum first-year withdrawal</span>
+            <span id="maximum-withdrawal-value" class="summary__value">—</span>
+          </div>
+          <div class="summary__stat">
+            <span class="summary__label">Supporting blended total return</span>
+            <span id="maximum-total-return" class="summary__value">—</span>
+          </div>
+        </div>
+
+        <h3 class="section-title">Supporting allocation</h3>
+        <table class="allocation-table">
+          <thead><tr><th>Symbol</th><th>Name</th><th>Type</th><th>Yield</th><th>Growth</th><th>Total return</th><th>Allocation</th><th>% of portfolio</th></tr></thead>
+          <tbody id="maximum-allocation-body"></tbody>
+        </table>
+
+        <h3 class="section-title">Supporting year-by-year projection</h3>
+        <table class="allocation-table">
+          <thead><tr><th>Year</th><th>Starting balance</th><th>Dividend income</th><th>Growth</th><th>Withdrawal</th><th>Ending balance</th></tr></thead>
+          <tbody id="maximum-projection-body"></tbody>
+        </table>
+        <p class="maximum-withdrawal__disclosure">
+          This verified maximum is an illustrative model result for this repository's curated set. It is not financial advice, does not forecast future returns, and is not a certainty.
+        </p>
+      </section>
+    </section>
+
     <section class="required-portfolio">
       <h2 class="section-title">Required starting portfolio</h2>
       <p class="page__subtitle">

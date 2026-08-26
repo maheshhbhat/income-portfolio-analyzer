@@ -1,5 +1,6 @@
 import { computeRetirementPlan } from './src/lib/retirement.js';
 import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
+import { computeMaxSustainableWithdrawal } from './src/lib/maxSustainableWithdrawal.js';
 import { SECURITIES } from './src/data/securities.js';
 import { selectProvider } from './src/data/providers/index.js';
 
@@ -315,4 +316,97 @@ requiredForm.addEventListener('submit', async (event) => {
 
 requiredRetryButton.addEventListener('click', () => {
   runRequiredComputation();
+});
+
+// --- Maximum sustainable withdrawal section ---
+// This flow is intentionally bound directly to the repository's illustrative
+// curated list. It has no provider-selection, snapshot, or refresh dependency.
+
+const maximumWithdrawalForm = document.getElementById('maximum-withdrawal-form');
+const maximumWithdrawalError = document.getElementById('maximum-withdrawal-error');
+const maximumWithdrawalRefusal = document.getElementById('maximum-withdrawal-refusal');
+const maximumWithdrawalResults = document.getElementById('maximum-withdrawal-results');
+const maximumWithdrawalBanner = document.getElementById('maximum-withdrawal-banner');
+const maximumWithdrawalValue = document.getElementById('maximum-withdrawal-value');
+const maximumTotalReturn = document.getElementById('maximum-total-return');
+const maximumAllocationBody = document.getElementById('maximum-allocation-body');
+const maximumProjectionBody = document.getElementById('maximum-projection-body');
+
+function clearMaximumWithdrawalOutputs() {
+  if (!maximumWithdrawalResults) return;
+  maximumWithdrawalError.hidden = true;
+  maximumWithdrawalError.textContent = '';
+  maximumWithdrawalRefusal.hidden = true;
+  maximumWithdrawalRefusal.textContent = '';
+  maximumWithdrawalResults.hidden = true;
+  maximumWithdrawalBanner.hidden = true;
+  maximumAllocationBody.innerHTML = '';
+  maximumProjectionBody.innerHTML = '';
+}
+
+function maximumWithdrawalInput() {
+  const portfolioDollars = Number.parseFloat(document.getElementById('maximum-portfolio').value);
+  const horizonYears = Number.parseFloat(document.getElementById('maximum-horizon').value);
+  const inflationRate = Number.parseFloat(document.getElementById('maximum-inflation').value) / 100;
+  const investmentAmountCents = portfolioDollars * 100;
+  if (!Number.isSafeInteger(investmentAmountCents)) {
+    return { error: 'Enter a starting portfolio greater than $0 in whole cents.' };
+  }
+  return { input: { investmentAmountCents, horizonYears, inflationRate } };
+}
+
+function renderMaximumWithdrawal(result) {
+  maximumWithdrawalBanner.textContent =
+    `${centsToDisplay(result.maxAnnualWithdrawalCents)} is the highest verified first-year annual withdrawal that lasts all ${result.horizonYears} years; increasing it by $0.01 fails the supporting projection.`;
+  maximumWithdrawalBanner.hidden = false;
+  maximumWithdrawalValue.textContent = centsToDisplay(result.maxAnnualWithdrawalCents);
+  maximumTotalReturn.textContent = percent(result.blendedTotalReturn);
+
+  maximumAllocationBody.innerHTML = '';
+  for (const line of result.allocation) {
+    const row = document.createElement('tr');
+    for (const value of [line.symbol, line.name, formatType(line.type), percent(line.yield), percent(line.growthRate), percent(line.totalReturn), centsToDisplay(line.amountCents), percent(line.percentOfPortfolio)]) {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    maximumAllocationBody.appendChild(row);
+  }
+
+  maximumProjectionBody.innerHTML = '';
+  for (const year of result.projection.years) {
+    const row = document.createElement('tr');
+    for (const value of [year.year, currency.format(year.startingBalance), currency.format(year.dividendIncome), currency.format(year.growthAmount), currency.format(year.withdrawalPaid), currency.format(year.endingBalance)]) {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    maximumProjectionBody.appendChild(row);
+  }
+  maximumWithdrawalResults.hidden = false;
+}
+
+function runMaximumWithdrawalComputation() {
+  clearMaximumWithdrawalOutputs();
+  const parsed = maximumWithdrawalInput();
+  if (parsed.error) {
+    maximumWithdrawalError.textContent = parsed.error;
+    maximumWithdrawalError.hidden = false;
+    return;
+  }
+  const result = computeMaxSustainableWithdrawal(parsed.input, SECURITIES);
+  if (!result.ok) {
+    const target = result.reason === 'no-verified-result' ? maximumWithdrawalRefusal : maximumWithdrawalError;
+    target.textContent = result.reason === 'no-verified-result'
+      ? `A verified maximum withdrawal could not be calculated for these inputs. No unverified figure is shown. ${result.error}`
+      : result.error;
+    target.hidden = false;
+    return;
+  }
+  renderMaximumWithdrawal(result);
+}
+
+maximumWithdrawalForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  runMaximumWithdrawalComputation();
 });
