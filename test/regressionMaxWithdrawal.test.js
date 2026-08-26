@@ -45,6 +45,22 @@ function assertNoHigherSurvivor(input, reportedMaximumCents, securities = SECURI
   }
 }
 
+function assertMatchesGlobalOracle(input, securities = SECURITIES) {
+  const result = computeMaxSustainableWithdrawal(input, securities);
+  const oracle = exhaustiveMaximum(input, securities);
+
+  assert.equal(result.ok, true, JSON.stringify(input));
+  assert.ok(Number.isSafeInteger(result.maxAnnualWithdrawalCents));
+  assert.equal(result.maxAnnualWithdrawalCents, oracle.bestSurvivorCents);
+  assert.equal(result.nextCentFails, true);
+  assert.equal(planAt(input, result.maxAnnualWithdrawalCents, securities).lastsFullHorizon, true);
+  assert.equal(planAt(input, result.maxAnnualWithdrawalCents + 1, securities).lastsFullHorizon, false);
+  assertNoHigherSurvivor(input, result.maxAnnualWithdrawalCents, securities);
+  assert.equal(result.allocation.reduce((sum, line) => sum + line.amountCents, 0), input.investmentAmountCents);
+
+  return { result, oracle };
+}
+
 test('regression contract: the maximum is a cent-quantized global survivor and the next cent fails', () => {
   const inputs = [
     { investmentAmountCents: 1000, horizonYears: 10, inflationRate: 0 },
@@ -53,16 +69,7 @@ test('regression contract: the maximum is a cent-quantized global survivor and t
   ];
 
   for (const input of inputs) {
-    const result = computeMaxSustainableWithdrawal(input, SECURITIES);
-    const oracle = exhaustiveMaximum(input, SECURITIES);
-    assert.equal(result.ok, true, JSON.stringify(input));
-    assert.ok(Number.isSafeInteger(result.maxAnnualWithdrawalCents));
-    assert.equal(result.maxAnnualWithdrawalCents, oracle.bestSurvivorCents);
-    assert.equal(result.nextCentFails, true);
-    assert.equal(planAt(input, result.maxAnnualWithdrawalCents).lastsFullHorizon, true);
-    assert.equal(planAt(input, result.maxAnnualWithdrawalCents + 1).lastsFullHorizon, false);
-    assertNoHigherSurvivor(input, result.maxAnnualWithdrawalCents);
-    assert.equal(result.allocation.reduce((sum, line) => sum + line.amountCents, 0), input.investmentAmountCents);
+    assertMatchesGlobalOracle(input, SECURITIES);
   }
 });
 
@@ -80,13 +87,31 @@ test('regression contract: a recovery across an allocation bracket is not discar
   assert.equal(planAt(input, 11, bracketChangingSet).lastsFullHorizon, false);
   assert.equal(planAt(input, 13, bracketChangingSet).lastsFullHorizon, true);
 
-  const result = computeMaxSustainableWithdrawal(input, bracketChangingSet);
-  const oracle = exhaustiveMaximum(input, bracketChangingSet);
-  assert.equal(result.ok, true);
+  const { result, oracle } = assertMatchesGlobalOracle(input, bracketChangingSet);
   assert.equal(result.maxAnnualWithdrawalCents, 13);
   assert.equal(result.maxAnnualWithdrawalCents, oracle.bestSurvivorCents);
   assert.equal(result.nextCentProjection.lastsFullHorizon, false);
-  assertNoHigherSurvivor(input, result.maxAnnualWithdrawalCents, bracketChangingSet);
+});
+
+test('regression contract: representative global-oracle fixtures cover curated, regime-jump, and non-monotone domains', () => {
+  const sharpJumpSet = [
+    { symbol: 'HIGH', name: 'High Return', type: 'etf', yield: 0.02, growthRate: 0.2 },
+    { symbol: 'LOW', name: 'Low Return', type: 'etf', yield: 0.01, growthRate: 0.02 }
+  ];
+  const lateRecoverySet = [
+    { symbol: 'A', name: 'A', type: 'etf', yield: 0, growthRate: -2 },
+    { symbol: 'B', name: 'B', type: 'etf', yield: 0, growthRate: -1.5 },
+    { symbol: 'C', name: 'C', type: 'etf', yield: 0, growthRate: 0.2 }
+  ];
+  const fixtures = [
+    { input: { investmentAmountCents: 1000, horizonYears: 15, inflationRate: 0.02 }, securities: SECURITIES },
+    { input: { investmentAmountCents: 1000, horizonYears: 20, inflationRate: 0.02 }, securities: sharpJumpSet },
+    { input: { investmentAmountCents: 103, horizonYears: 20, inflationRate: 0.02 }, securities: lateRecoverySet }
+  ];
+
+  for (const fixture of fixtures) {
+    assertMatchesGlobalOracle(fixture.input, fixture.securities);
+  }
 });
 
 test('regression contract: invalid and refusal results remain actionable and never expose a maximum', () => {

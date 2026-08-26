@@ -32,18 +32,17 @@ against exact PR #57 head
 `http://127.0.0.1:3011/`. This is owner UAT evidence for Story #51; it is not a
 Project acceptance decision.
 
-The current checked-in head is `a2ecfbfa8e742b2f04045dbf153fc9c85c8cc811`.
-The only path changed since the recorded owner run is this evidence file
-itself, so the executed application code and UI under review remain the exact
-owner-verified revision named above.
+Later commits in PR #57 recorded or tightened acceptance evidence and automated
+tests. Per the Story #51 acceptance notes, those later commits did not change
+the served application or runtime behavior exercised in this Chrome run.
 
 | Field | Record |
 | --- | --- |
 | Run at | 2026-08-26 (America/New_York) |
 | Chrome | Google Chrome 151.0.7922.174 |
 | Local URL | `http://127.0.0.1:3011/` |
-| Current checked-in head | `a2ecfbfa8e742b2f04045dbf153fc9c85c8cc811` |
-| Paths changed after owner run | `test/maxWithdrawalChromeUat.md` only |
+| Owner-verified application head | `baae6b883280589f30b9c9b39e0643db42d7a399` |
+| Later PR work after owner run | Acceptance-evidence and automated-test updates only; no served-app/runtime change per Story #51 acceptance notes |
 | Provider | Illustrative comparison |
 | Successful result | A $10.00 starting portfolio, 10-year horizon, and 2% inflation rendered a verified maximum of $1.58. The visible proof said this was the highest verified first-year annual withdrawal and that $0.01 more fails. |
 | Supporting result | The page rendered an 11.12% blended return, five allocation rows, and ten projection rows. |
