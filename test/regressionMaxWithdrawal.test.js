@@ -14,6 +14,24 @@ function planAt(input, withdrawalCents, securities = SECURITIES) {
   }, securities);
 }
 
+// This deliberately does not reuse the maximum-withdrawal module's search or
+// its cache.  It asks the established retirement engine about every cent above
+// the reported answer through the independent, mathematically closed year-one
+// domain.  A later survivor is therefore caught even when feasibility recovers
+// after one or more failures at an allocation-regime boundary.
+function assertNoHigherSurvivor(input, reportedMaximumCents, securities = SECURITIES) {
+  const greatestTotalReturn = Math.max(...securities.map((security) => security.yield + security.growthRate));
+  const domainMaximumCents = Math.max(0, Math.ceil(input.investmentAmountCents * (1 + greatestTotalReturn)));
+
+  for (let cents = reportedMaximumCents + 1; cents <= domainMaximumCents; cents++) {
+    assert.equal(
+      planAt(input, cents, securities).lastsFullHorizon,
+      false,
+      `found a higher surviving cent (${cents}) above reported maximum ${reportedMaximumCents} for ${JSON.stringify(input)}`
+    );
+  }
+}
+
 test('regression contract: the maximum is a cent-quantized global survivor and the next cent fails', () => {
   const inputs = [
     { investmentAmountCents: 1000, horizonYears: 10, inflationRate: 0 },
@@ -28,6 +46,7 @@ test('regression contract: the maximum is a cent-quantized global survivor and t
     assert.equal(result.nextCentFails, true);
     assert.equal(planAt(input, result.maxAnnualWithdrawalCents).lastsFullHorizon, true);
     assert.equal(planAt(input, result.maxAnnualWithdrawalCents + 1).lastsFullHorizon, false);
+    assertNoHigherSurvivor(input, result.maxAnnualWithdrawalCents);
     assert.equal(result.allocation.reduce((sum, line) => sum + line.amountCents, 0), input.investmentAmountCents);
   }
 });
@@ -50,6 +69,7 @@ test('regression contract: a recovery across an allocation bracket is not discar
   assert.equal(result.ok, true);
   assert.equal(result.maxAnnualWithdrawalCents, 13);
   assert.equal(result.nextCentProjection.lastsFullHorizon, false);
+  assertNoHigherSurvivor(input, result.maxAnnualWithdrawalCents, bracketChangingSet);
 });
 
 test('regression contract: invalid and refusal results remain actionable and never expose a maximum', () => {

@@ -24,17 +24,41 @@ withdrawal calculator must not use a provider snapshot or Refresh Data.
    the page during either submission (ignore messages emitted by browser
    extensions, if any).
 
-## Evidence to attach to the owner acceptance comment
+## Execution record
+
+This worktree could not host the owner run: on 2026-08-26, `npm start` failed
+before serving the application because the sandbox denied the listener with
+`listen EPERM: operation not permitted 0.0.0.0:3000`. Google Chrome
+151.0.7922.174 is installed in the execution environment, but opening a static
+file is not an equivalent click-and-render acceptance of the served product.
+
+Accordingly, this is explicitly **not an acceptance pass**. The table below is
+the record the owner must complete from a machine that can serve the app; it
+replaces the ambiguous pending template with a concrete blocked-run result and
+keeps the acceptance claim from being made without evidence.
 
 | Field | Record |
 | --- | --- |
-| Date/time and Chrome version | _Pending owner run_ |
-| Local URL | _Pending owner run_ |
-| Successful result and visible `$0.01` proof | _Pending owner run_ |
-| Allocation/projection/disclosure checked | _Pending owner run_ |
-| Invalid-input behavior checked | _Pending owner run_ |
-| Console errors from page | _Pending owner run (expected: none)_ |
-| Screenshot or screen recording link | _Pending owner run_ |
+| Attempted at | 2026-08-26 (America/New_York) |
+| Chrome available | Google Chrome 151.0.7922.174 |
+| Attempted local URL | `http://localhost:3000` |
+| Served application available | No — sandbox listener failure: `EPERM` |
+| Successful result, allocation, projection, and disclosure | Not run; server could not start |
+| Invalid-input behavior | Not run; server could not start |
+| Page-console errors | Not assessed; no served page was loaded |
+| Acceptance status | Blocked — owner Chrome run still required |
+
+## Owner evidence to attach after the real Chrome run
+
+| Field | Record |
+| --- | --- |
+| Date/time and Chrome version | Record actual value |
+| Local URL | Record actual value |
+| Successful result and visible `$0.01` proof | Record rendered value and check |
+| Allocation/projection/disclosure checked | Record row counts/text check |
+| Invalid-input behavior checked | Record visible actionable error and hidden stale result |
+| Console errors from page | Record page-generated error count (expected: 0) |
+| Screenshot or screen recording link | Attach owner evidence |
 
 The automated companion is `test/regressionMaxWithdrawal.test.js`; it proves
 the cent boundary, non-monotone bracket case, refusal behavior, determinism,
