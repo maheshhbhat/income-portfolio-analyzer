@@ -49,7 +49,7 @@ test('verified refresh atomically replaces active snapshot', async () => {
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('Fidelity refresh keeps its request identification provider-neutral', async () => {
+test('Fidelity refresh preserves its original one-argument fetch behavior', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'provider-refresh-'));
   const requests = [];
   try {
@@ -63,8 +63,7 @@ test('Fidelity refresh keeps its request identification provider-neutral', async
     assert.equal(requests.length, FIDELITY_SNAPSHOT.entries.length);
     for (const { url, options } of requests) {
       assert.match(url, /^https:\/\/(?:[^/]+\.)?fidelity\.com\//);
-      assert.equal(options.headers['User-Agent'], 'income-portfolio-analyzer/1.0');
-      assert.doesNotMatch(options.headers['User-Agent'], /vanguard/i);
+      assert.equal(options, undefined);
     }
   } finally { await rm(root, { recursive: true, force: true }); }
 });
