@@ -113,6 +113,12 @@ test('refresh failure classes preserve the exact last-known-good snapshot', asyn
     {
       name: 'unverifiable factual value', status: 422, error: /does not contain verifiable/i,
       fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}\nTrailing yield: unknown` })
+    },
+    {
+      name: 'cross-provider redirect to Fidelity', status: 422, error: /final response URL/i,
+      fetchImpl: async (url) => responseFor(entryFor(url), {
+        url: FIDELITY_SNAPSHOT.entries[0].facts.name.sourceUrl
+      })
     }
   ];
   for (const scenario of cases) await t.test(scenario.name, () => assertRejectedRefresh(scenario));
