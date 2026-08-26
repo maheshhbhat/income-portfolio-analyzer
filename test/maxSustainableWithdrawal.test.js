@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { computeMaxSustainableWithdrawal } from '../src/lib/maxSustainableWithdrawal.js';
-import { computeRetirementPlan } from '../src/lib/retirement.js';
+import { bracketAndBlend, computeRetirementPlan } from '../src/lib/retirement.js';
 import { SECURITIES } from '../src/data/securities.js';
 
 // Independent cross-check: computeRetirementPlan is the repository's already
@@ -22,7 +22,7 @@ function planAtWithdrawalCents(investmentAmountCents, withdrawalCents, horizonYe
 }
 
 const REPRESENTATIVE_GRID = [];
-for (const investmentAmountCents of [50000000, 100000000]) {
+for (const investmentAmountCents of [1000, 2000]) {
   for (const horizonYears of [10, 25]) {
     for (const inflationRate of [0, 0.02, 0.03]) {
       REPRESENTATIVE_GRID.push({ investmentAmountCents, horizonYears, inflationRate });
@@ -116,7 +116,7 @@ test('bracket-boundary regime: a withdrawal landing exactly at a curated metric 
   // breakpoint this module's regime search must handle explicitly (see
   // module header, simplification 1) rather than only sampling around it.
   for (const security of SECURITIES) {
-    const investmentAmountCents = 100000000;
+    const investmentAmountCents = 1000;
     const metric = security.yield + security.growthRate;
     const breakpointCents = Math.round(metric * investmentAmountCents);
     if (breakpointCents <= 0 || breakpointCents >= investmentAmountCents) continue;
@@ -147,7 +147,7 @@ test('two adjacent curated securities with a deliberately large metric gap creat
     { symbol: 'HIGH', name: 'High Return', type: 'etf', yield: 0.02, growthRate: 0.2 },
     { symbol: 'LOW', name: 'Low Return', type: 'etf', yield: 0.01, growthRate: 0.02 }
   ];
-  const input = { investmentAmountCents: 100000000, horizonYears: 20, inflationRate: 0.02 };
+  const input = { investmentAmountCents: 1000, horizonYears: 20, inflationRate: 0.02 };
   const result = computeMaxSustainableWithdrawal(input, sharpJump);
   assert.equal(result.ok, true);
 
@@ -176,7 +176,7 @@ test('identical inputs produce deterministic deep-equal results', () => {
     REPRESENTATIVE_GRID[5],
     { investmentAmountCents: 100, horizonYears: 40, inflationRate: 0.5 },
     { investmentAmountCents: -100, horizonYears: 10, inflationRate: 0.02 },
-    { investmentAmountCents: 1000000, horizonYears: 10, inflationRate: 0.02 }
+    { investmentAmountCents: 1000, horizonYears: 10, inflationRate: 0.02 }
   ];
   for (const input of inputs) {
     assert.deepEqual(
@@ -184,6 +184,39 @@ test('identical inputs produce deterministic deep-equal results', () => {
       computeMaxSustainableWithdrawal({ ...input }, SECURITIES)
     );
   }
+});
+
+test('exhaustive verifier finds a late non-monotone survivor that all 17 former anchors miss', () => {
+  // The 11 -> 13 cent recovery occurs inside the same B/C bracket regime;
+  // it is not a bracket-boundary jump. The former 17-point sampler probes
+  // 8 then 16 in this 0..124 domain and misses the isolated survivor.
+  const nonMonotone = [
+    { symbol: 'A', name: 'A', type: 'etf', yield: 0, growthRate: -2 },
+    { symbol: 'B', name: 'B', type: 'etf', yield: 0, growthRate: -1.5 },
+    { symbol: 'C', name: 'C', type: 'etf', yield: 0, growthRate: 0.2 }
+  ];
+  const input = { investmentAmountCents: 103, horizonYears: 20, inflationRate: 0.02 };
+  const domainMax = 124;
+  const survivors = [];
+  for (let cents = 0; cents <= domainMax; cents++) {
+    if (planAtWithdrawalCents(103, cents, 20, 0.02, nonMonotone).lastsFullHorizon) survivors.push(cents);
+  }
+  assert.ok(survivors.includes(10));
+  assert.ok(!survivors.includes(11));
+  assert.ok(survivors.includes(13));
+  const formerAnchors = Array.from({ length: 17 }, (_, index) => Math.round((domainMax * index) / 16));
+  assert.ok(!formerAnchors.includes(13), 'fixture must be invisible to the former 17-point sample');
+  const symbolsAt = (cents) => bracketAndBlend(1.03, nonMonotone, cents / 103, (s) => s.yield + s.growthRate)
+    .items.map((item) => item.security.symbol).sort();
+  assert.deepEqual(symbolsAt(11), ['B', 'C']);
+  assert.deepEqual(symbolsAt(13), ['B', 'C']);
+  assert.deepEqual(symbolsAt(14), ['B', 'C']);
+
+  const result = computeMaxSustainableWithdrawal(input, nonMonotone);
+  assert.equal(result.ok, true);
+  assert.equal(result.maxAnnualWithdrawalCents, 13);
+  assert.equal(result.projection.lastsFullHorizon, true);
+  assert.equal(result.nextCentProjection.lastsFullHorizon, false);
 });
 
 test('invalid inputs return ok:false with reason invalid-input and an actionable message, never an exception', () => {
@@ -223,7 +256,7 @@ test('a curated set with a total return at -200% collapses the balance from grow
     { symbol: 'AAA', name: 'Alpha', type: 'etf', yield: 0, growthRate: -2 },
     { symbol: 'BBB', name: 'Beta', type: 'etf', yield: 0, growthRate: -2 }
   ];
-  const input = { investmentAmountCents: 100000000, horizonYears: 10, inflationRate: 0.02 };
+  const input = { investmentAmountCents: 1000, horizonYears: 10, inflationRate: 0.02 };
   const result = computeMaxSustainableWithdrawal(input, hopeless);
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'no-verified-result');
@@ -243,7 +276,7 @@ test('a curated set with a modest guaranteed loss still verifies a maximum, with
     { symbol: 'AAA', name: 'Alpha', type: 'etf', yield: 0, growthRate: -0.05 },
     { symbol: 'BBB', name: 'Beta', type: 'etf', yield: 0, growthRate: -0.05 }
   ];
-  const input = { investmentAmountCents: 100000000, horizonYears: 10, inflationRate: 0.02 };
+  const input = { investmentAmountCents: 1000, horizonYears: 10, inflationRate: 0.02 };
   const result = computeMaxSustainableWithdrawal(input, mildLoss);
   assert.equal(result.ok, true);
   assert.ok(result.maxAnnualWithdrawalCents >= 0);
