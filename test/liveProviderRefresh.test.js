@@ -14,7 +14,10 @@ import { FIDELITY_SNAPSHOT } from '../src/data/providers/fidelity.js';
 import { VANGUARD_SNAPSHOT } from '../src/data/providers/vanguard.js';
 
 const ENABLED = process.env.RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE === '1';
-const REFRESH_DATE = '2026-08-26';
+// Keep the injected server clock and requested fact date aligned to the
+// review-date baseline. This prevents the acceptance check from asking the
+// production endpoint to accept a future as-of date.
+const REFRESH_DATE = '2026-08-25';
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function mockElement(tagName) {
