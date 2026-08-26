@@ -14,16 +14,29 @@ function planAt(input, withdrawalCents, securities = SECURITIES) {
   }, securities);
 }
 
-// This deliberately does not reuse the maximum-withdrawal module's search or
-// its cache.  It asks the established retirement engine about every cent above
-// the reported answer through the independent, mathematically closed year-one
-// domain.  A later survivor is therefore caught even when feasibility recovers
-// after one or more failures at an allocation-regime boundary.
-function assertNoHigherSurvivor(input, reportedMaximumCents, securities = SECURITIES) {
+function domainMaximumCents(input, securities = SECURITIES) {
   const greatestTotalReturn = Math.max(...securities.map((security) => security.yield + security.growthRate));
-  const domainMaximumCents = Math.max(0, Math.ceil(input.investmentAmountCents * (1 + greatestTotalReturn)));
+  return Math.max(0, Math.ceil(input.investmentAmountCents * (1 + greatestTotalReturn)));
+}
 
-  for (let cents = reportedMaximumCents + 1; cents <= domainMaximumCents; cents++) {
+// This deliberately does not reuse the maximum-withdrawal module's search,
+// partitioning, or cache. It asks the established retirement engine about
+// every cent in the mathematically closed year-one domain and returns the
+// global survivor, if any, even when feasibility fails and later recovers
+// across an allocation-regime boundary.
+function exhaustiveMaximum(input, securities = SECURITIES) {
+  let bestSurvivorCents = null;
+  const limit = domainMaximumCents(input, securities);
+
+  for (let cents = 0; cents <= limit; cents++) {
+    if (planAt(input, cents, securities).lastsFullHorizon) bestSurvivorCents = cents;
+  }
+
+  return { bestSurvivorCents, limit };
+}
+
+function assertNoHigherSurvivor(input, reportedMaximumCents, securities = SECURITIES) {
+  for (let cents = reportedMaximumCents + 1; cents <= domainMaximumCents(input, securities); cents++) {
     assert.equal(
       planAt(input, cents, securities).lastsFullHorizon,
       false,
@@ -41,8 +54,10 @@ test('regression contract: the maximum is a cent-quantized global survivor and t
 
   for (const input of inputs) {
     const result = computeMaxSustainableWithdrawal(input, SECURITIES);
+    const oracle = exhaustiveMaximum(input, SECURITIES);
     assert.equal(result.ok, true, JSON.stringify(input));
     assert.ok(Number.isSafeInteger(result.maxAnnualWithdrawalCents));
+    assert.equal(result.maxAnnualWithdrawalCents, oracle.bestSurvivorCents);
     assert.equal(result.nextCentFails, true);
     assert.equal(planAt(input, result.maxAnnualWithdrawalCents).lastsFullHorizon, true);
     assert.equal(planAt(input, result.maxAnnualWithdrawalCents + 1).lastsFullHorizon, false);
@@ -66,8 +81,10 @@ test('regression contract: a recovery across an allocation bracket is not discar
   assert.equal(planAt(input, 13, bracketChangingSet).lastsFullHorizon, true);
 
   const result = computeMaxSustainableWithdrawal(input, bracketChangingSet);
+  const oracle = exhaustiveMaximum(input, bracketChangingSet);
   assert.equal(result.ok, true);
   assert.equal(result.maxAnnualWithdrawalCents, 13);
+  assert.equal(result.maxAnnualWithdrawalCents, oracle.bestSurvivorCents);
   assert.equal(result.nextCentProjection.lastsFullHorizon, false);
   assertNoHigherSurvivor(input, result.maxAnnualWithdrawalCents, bracketChangingSet);
 });

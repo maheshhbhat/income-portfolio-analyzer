@@ -1,10 +1,10 @@
 # Maximum withdrawal Chrome UAT record
 
-This is an owner-facing, repeatable Chrome acceptance path for Story #51. It
-deliberately uses the **Illustrative comparison** data set; the maximum
-withdrawal calculator must not use a provider snapshot or Refresh Data.
+This is an owner-facing Chrome acceptance record for Story #51. It deliberately
+uses the **Illustrative comparison** data set; the maximum withdrawal
+calculator must not use a provider snapshot or Refresh Data.
 
-## Run procedure
+## Recorded run procedure
 
 1. Start the application with `npm start`, then open the displayed local URL in
    Google Chrome. Open DevTools and select the Console panel; enable Preserve
@@ -32,11 +32,18 @@ against exact PR #57 head
 `http://127.0.0.1:3011/`. This is owner UAT evidence for Story #51; it is not a
 Project acceptance decision.
 
+The current checked-in head is `a2ecfbfa8e742b2f04045dbf153fc9c85c8cc811`.
+The only path changed since the recorded owner run is this evidence file
+itself, so the executed application code and UI under review remain the exact
+owner-verified revision named above.
+
 | Field | Record |
 | --- | --- |
 | Run at | 2026-08-26 (America/New_York) |
 | Chrome | Google Chrome 151.0.7922.174 |
 | Local URL | `http://127.0.0.1:3011/` |
+| Current checked-in head | `a2ecfbfa8e742b2f04045dbf153fc9c85c8cc811` |
+| Paths changed after owner run | `test/maxWithdrawalChromeUat.md` only |
 | Provider | Illustrative comparison |
 | Successful result | A $10.00 starting portfolio, 10-year horizon, and 2% inflation rendered a verified maximum of $1.58. The visible proof said this was the highest verified first-year annual withdrawal and that $0.01 more fails. |
 | Supporting result | The page rendered an 11.12% blended return, five allocation rows, and ten projection rows. |
