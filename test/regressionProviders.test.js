@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, readFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { EventEmitter } from 'node:events';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SECURITIES } from '../src/data/securities.js';
@@ -9,6 +11,7 @@ import { VANGUARD_SNAPSHOT } from '../src/data/providers/vanguard.js';
 import { computeAllocation } from '../src/lib/allocation.js';
 import { computeRequiredPortfolio } from '../src/lib/requiredPortfolio.js';
 import { computeRetirementPlan } from '../src/lib/retirement.js';
+import { createRequestHandler } from '../server.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -76,7 +79,7 @@ function manifestFor(snapshots) {
     '| --- | --- | --- | --- | --- | --- |',
     ...rows, '',
     '## Opt-in live refresh acceptance', '',
-    '`RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE=1 npm test` starts the real server in an isolated temporary runtime directory and calls the production Refresh Data endpoint for the committed Vanguard and Fidelity sets. It is intentionally excluded from the ordinary deterministic test run. A live fetch, redirect-domain, markup, parse, or validation failure exits unsuccessfully only after read-back proves the previous snapshot was not changed.', '',
+    '`RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE=1 npm test` starts the real server in an isolated temporary runtime directory, calls the production Refresh Data endpoint for the committed Vanguard and Fidelity sets, and renders each accepted provider display with its refreshed as-of date. It is intentionally excluded from the ordinary deterministic test run. A live fetch, redirect-domain, markup, parse, or validation failure exits unsuccessfully only after read-back proves the previous snapshot was not changed.', '',
     'Acceptance: a human must compare at least five rows against their recorded official pages before accepting this data.', ''
   ].join('\n');
 }
@@ -105,4 +108,70 @@ test('provider hardening keeps the zero-dependency and integer-cent contracts', 
   assert.equal(required.ok, true);
   assert.ok(Number.isInteger(required.requiredPortfolioCents));
   assert.ok(required.allocation.every((line) => Number.isInteger(line.amountCents)));
+});
+
+function responseFor(entry, { ok = true, url = entry.facts.name.sourceUrl, text } = {}) {
+  return {
+    ok,
+    status: ok ? 200 : 503,
+    url,
+    text: async () => text ?? `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(entry.yield * 100).toFixed(4)}%`
+  };
+}
+
+async function request(handler, { method, url, body } = {}) {
+  const req = new EventEmitter();
+  req.method = method;
+  req.url = url;
+  const response = { status: null, body: '', writeHead(status) { this.status = status; }, end(bodyText) { this.body = bodyText; } };
+  const pending = handler(req, response);
+  process.nextTick(() => { if (body) req.emit('data', body); req.emit('end'); });
+  await pending;
+  return { status: response.status, payload: JSON.parse(response.body) };
+}
+
+async function seedLastKnownGood(root) {
+  const runtime = path.join(root, '.runtime', 'provider-snapshots');
+  const target = path.join(runtime, 'vanguard.json');
+  await mkdir(runtime, { recursive: true });
+  await writeFile(target, `${JSON.stringify(VANGUARD_SNAPSHOT)}\n`, 'utf8');
+  return { target, bytes: await readFile(target, 'utf8') };
+}
+
+test('production refresh handler rejects every failure class without mutating the active snapshot', async (t) => {
+  const entryFor = (url) => VANGUARD_SNAPSHOT.entries.find((entry) => entry.facts.name.sourceUrl === url);
+  const cases = [
+    { name: 'network failure', status: 502, error: /unable to reach/i, fetchImpl: async () => { throw new Error('offline'); } },
+    { name: 'non-success HTTP response', status: 502, error: /HTTP 503/i, fetchImpl: async (url) => responseFor(entryFor(url), { ok: false }) },
+    { name: 'malformed content', status: 422, error: /does not contain verifiable/i, fetchImpl: async (url) => responseFor(entryFor(url), { text: '<html>not fund facts</html>' }) },
+    { name: 'partial content', status: 422, error: /does not contain verifiable/i, fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}` }) },
+    { name: 'unverifiable factual value', status: 422, error: /does not contain verifiable/i, fetchImpl: async (url) => responseFor(entryFor(url), { text: `Fund name: ${entryFor(url).name}\nTicker: ${entryFor(url).symbol}\nTrailing yield: unknown` }) },
+    { name: 'cross-provider final URL', status: 422, error: /final response URL/i, fetchImpl: async (url) => responseFor(entryFor(url), { url: FIDELITY_SNAPSHOT.entries[0].facts.name.sourceUrl }) }
+  ];
+
+  for (const scenario of cases) await t.test(scenario.name, async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'provider-refresh-regression-'));
+    try {
+      const persisted = await seedLastKnownGood(root);
+      let renameCalls = 0;
+      const handler = createRequestHandler({
+        root,
+        fetchImpl: scenario.fetchImpl,
+        fsOps: { mkdir, readFile, unlink, writeFile, rename: async (...args) => { renameCalls += 1; return rename(...args); } }
+      });
+      const before = await request(handler, { method: 'GET', url: '/api/providers/vanguard/active-snapshot' });
+      const refresh = await request(handler, { method: 'POST', url: '/api/providers/vanguard/refresh' });
+      const after = await request(handler, { method: 'GET', url: '/api/providers/vanguard/active-snapshot' });
+
+      assert.equal(refresh.status, scenario.status);
+      assert.equal(refresh.payload.ok, false);
+      assert.match(refresh.payload.error, scenario.error);
+      assert.equal(renameCalls, 0, 'a rejected candidate must not begin atomic replacement');
+      assert.deepEqual(after.payload.snapshot, before.payload.snapshot, 'active snapshot changed after rejection');
+      assert.equal(after.payload.snapshot.asOf, before.payload.snapshot.asOf, 'active as-of date changed after rejection');
+      assert.equal(await readFile(persisted.target, 'utf8'), persisted.bytes, 'persisted last-known-good bytes changed');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });

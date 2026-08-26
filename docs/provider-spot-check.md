@@ -55,6 +55,6 @@ Generated from the committed provider snapshots. Every row is a verified fact; g
 
 ## Opt-in live refresh acceptance
 
-`RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE=1 npm test` starts the real server in an isolated temporary runtime directory and calls the production Refresh Data endpoint for the committed Vanguard and Fidelity sets. It is intentionally excluded from the ordinary deterministic test run. A live fetch, redirect-domain, markup, parse, or validation failure exits unsuccessfully only after read-back proves the previous snapshot was not changed.
+`RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE=1 npm test` starts the real server in an isolated temporary runtime directory, calls the production Refresh Data endpoint for the committed Vanguard and Fidelity sets, and renders each accepted provider display with its refreshed as-of date. It is intentionally excluded from the ordinary deterministic test run. A live fetch, redirect-domain, markup, parse, or validation failure exits unsuccessfully only after read-back proves the previous snapshot was not changed.
 
 Acceptance: a human must compare at least five rows against their recorded official pages before accepting this data.

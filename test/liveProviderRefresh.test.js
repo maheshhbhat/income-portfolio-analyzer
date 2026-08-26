@@ -4,16 +4,36 @@
 // production refresh path is not proven and must not be converted to a skip.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { once } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createServer } from '../server.js';
 import { FIDELITY_SNAPSHOT } from '../src/data/providers/fidelity.js';
 import { VANGUARD_SNAPSHOT } from '../src/data/providers/vanguard.js';
 
 const ENABLED = process.env.RUN_LIVE_PROVIDER_REFRESH_ACCEPTANCE === '1';
 const REFRESH_DATE = '2026-08-26';
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function mockElement(tagName) {
+  return {
+    tagName: tagName.toUpperCase(), children: [], textContent: '', hidden: false, innerHTML: '', value: 'illustrative', listeners: {},
+    appendChild(child) { this.children.push(child); return child; },
+    setAttribute(name, value) { this[name] = value; },
+    addEventListener(type, listener) { this.listeners[type] = listener; }
+  };
+}
+
+function appDocument() {
+  const ids = [
+    'allocation-form', 'form-error', 'results', 'verdict-banner', 'unreachable-banner', 'summary-yield', 'summary-growth', 'summary-total-return', 'summary-allocated', 'allocation-body', 'projection-body', 'provider-select', 'refresh-data', 'provider-status', 'provider-error',
+    'required-form', 'required-error', 'required-unverified', 'required-unverified-message', 'required-retry', 'required-results', 'required-banner', 'required-portfolio-value', 'required-yield', 'required-growth', 'required-total-return', 'required-allocation-body'
+  ];
+  const elements = new Map(ids.map((id) => [id, mockElement('div')]));
+  return { createElement: mockElement, getElementById: (id) => elements.get(id) };
+}
 
 async function startIsolatedServer(root) {
   const server = createServer({ root, now: () => REFRESH_DATE });
@@ -41,6 +61,9 @@ test('opt-in live refresh proves official Vanguard and Fidelity pages through th
   const root = await mkdtemp(path.join(os.tmpdir(), 'income-provider-live-'));
   let server;
   try {
+    await Promise.all([
+      'index.html', 'app.js', 'styles.css', 'src'
+    ].map((item) => cp(path.join(PROJECT_ROOT, item), path.join(root, item), { recursive: item === 'src' })));
     const runtime = path.join(root, '.runtime', 'provider-snapshots');
     await mkdir(runtime, { recursive: true });
     for (const seed of [VANGUARD_SNAPSHOT, FIDELITY_SNAPSHOT]) {
@@ -49,6 +72,10 @@ test('opt-in live refresh proves official Vanguard and Fidelity pages through th
 
     const started = await startIsolatedServer(root);
     server = started.server;
+    const application = await fetch(`${started.baseUrl}/`);
+    assert.equal(application.status, 200, 'the live acceptance server must serve the production application');
+    assert.match(await application.text(), /id="provider-status"/);
+    assert.equal((await fetch(`${started.baseUrl}/app.js`)).status, 200);
     for (const seed of [VANGUARD_SNAPSHOT, FIDELITY_SNAPSHOT]) {
       const route = `/api/providers/${seed.providerId}/snapshot`;
       const persistedPath = path.join(runtime, `${seed.providerId}.json`);
@@ -83,6 +110,22 @@ test('opt-in live refresh proves official Vanguard and Fidelity pages through th
       const active = await api(started.baseUrl, `/api/providers/${seed.providerId}/active-snapshot`);
       assert.deepEqual(active.payload.snapshot, accepted, `${seed.providerId}: accepted snapshot was not served back`);
       assert.notEqual(await readFile(persistedPath, 'utf8'), beforeBytes, `${seed.providerId}: acceptance did not atomically persist a new snapshot`);
+
+      const savedDocument = globalThis.document;
+      const savedFetch = globalThis.fetch;
+      globalThis.document = appDocument();
+      globalThis.fetch = (route, options) => savedFetch(new URL(route, started.baseUrl), options);
+      try {
+        await import(`../app.js?live-provider-display=${seed.providerId}-${Date.now()}`);
+        const select = globalThis.document.getElementById('provider-select');
+        select.value = seed.providerId;
+        await select.listeners.change();
+        const providerName = seed.providerId === 'vanguard' ? 'Vanguard' : 'Fidelity';
+        assert.match(globalThis.document.getElementById('provider-status').textContent, new RegExp(`${providerName} data active as of ${REFRESH_DATE}`), `${seed.providerId}: provider display did not render the accepted as-of date`);
+      } finally {
+        globalThis.document = savedDocument;
+        globalThis.fetch = savedFetch;
+      }
     }
   } finally {
     if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
