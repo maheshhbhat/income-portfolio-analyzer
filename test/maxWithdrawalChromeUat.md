@@ -26,39 +26,24 @@ withdrawal calculator must not use a provider snapshot or Refresh Data.
 
 ## Execution record
 
-This worktree could not host the owner run: on 2026-08-26, `npm start` failed
-before serving the application because the sandbox denied the listener with
-`listen EPERM: operation not permitted 0.0.0.0:3000`. Google Chrome
-151.0.7922.174 is installed in the execution environment, but opening a static
-file is not an equivalent click-and-render acceptance of the served product.
-
-Accordingly, this is explicitly **not an acceptance pass**. The table below is
-the record the owner must complete from a machine that can serve the app; it
-replaces the ambiguous pending template with a concrete blocked-run result and
-keeps the acceptance claim from being made without evidence.
+The owner completed the run on 2026-08-26 in Google Chrome 151.0.7922.174
+against exact PR #57 head
+`baae6b883280589f30b9c9b39e0643db42d7a399`. The application was served at
+`http://127.0.0.1:3011/`. This is owner UAT evidence for Story #51; it is not a
+Project acceptance decision.
 
 | Field | Record |
 | --- | --- |
-| Attempted at | 2026-08-26 (America/New_York) |
-| Chrome available | Google Chrome 151.0.7922.174 |
-| Attempted local URL | `http://localhost:3000` |
-| Served application available | No — sandbox listener failure: `EPERM` |
-| Successful result, allocation, projection, and disclosure | Not run; server could not start |
-| Invalid-input behavior | Not run; server could not start |
-| Page-console errors | Not assessed; no served page was loaded |
-| Acceptance status | Blocked — owner Chrome run still required |
-
-## Owner evidence to attach after the real Chrome run
-
-| Field | Record |
-| --- | --- |
-| Date/time and Chrome version | Record actual value |
-| Local URL | Record actual value |
-| Successful result and visible `$0.01` proof | Record rendered value and check |
-| Allocation/projection/disclosure checked | Record row counts/text check |
-| Invalid-input behavior checked | Record visible actionable error and hidden stale result |
-| Console errors from page | Record page-generated error count (expected: 0) |
-| Screenshot or screen recording link | Attach owner evidence |
+| Run at | 2026-08-26 (America/New_York) |
+| Chrome | Google Chrome 151.0.7922.174 |
+| Local URL | `http://127.0.0.1:3011/` |
+| Provider | Illustrative comparison |
+| Successful result | A $10.00 starting portfolio, 10-year horizon, and 2% inflation rendered a verified maximum of $1.58. The visible proof said this was the highest verified first-year annual withdrawal and that $0.01 more fails. |
+| Supporting result | The page rendered an 11.12% blended return, five allocation rows, and ten projection rows. |
+| Disclosure | Visible text said the result is illustrative, not financial advice, not a forecast, and not a certainty. |
+| Invalid-input behavior | Replacing the starting portfolio with 0 hid the prior result, rendered zero allocation and projection rows, displayed no withdrawal figure, and showed: “Enter a starting portfolio as a safe whole number of cents greater than $0.” |
+| Page-console errors or warnings | 0 |
+| Durable owner evidence | [Story #51 owner Chrome UAT evidence](https://github.com/maheshhbhat/income-portfolio-analyzer/issues/51#issuecomment-5424581733) |
 
 The automated companion is `test/regressionMaxWithdrawal.test.js`; it proves
 the cent boundary, non-monotone bracket case, refusal behavior, determinism,
