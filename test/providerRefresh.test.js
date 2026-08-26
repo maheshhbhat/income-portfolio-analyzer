@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VANGUARD_SNAPSHOT } from '../src/data/providers/vanguard.js';
 import { FIDELITY_SNAPSHOT } from '../src/data/providers/fidelity.js';
-import { refreshProviderSnapshot } from '../src/lib/providerRefresh.js';
+import { parseOfficialProviderPage, refreshProviderSnapshot } from '../src/lib/providerRefresh.js';
 
 function pagesFor(snapshot) {
   return Object.fromEntries(snapshot.entries.map((entry) => [entry.symbol, {
@@ -52,6 +52,42 @@ test('unrelated name and yield markers cannot be accepted as verified facts', ()
   assert.equal(result.accepted, false);
   assert.equal(result.snapshot, current);
   assert.match(result.error, /verifiable name, ticker, and trailing yield facts/);
+});
+
+test('current Vanguard share-class and Fidelity summary markup read only titled identities and labeled yields', () => {
+  const vanguard = parseOfficialProviderPage({
+    providerId: 'vanguard',
+    finalUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/vti',
+    text: '<title>VTI-Vanguard Total Stock Market ETF | Vanguard</title><section><h4>30 day SEC yield</h4><strong>1.01%</strong><p>30 unrelated holdings</p></section>'
+  });
+  assert.deepEqual(vanguard, {
+    ok: true, name: 'Vanguard Total Stock Market ETF', symbol: 'VTI', trailingYield: 0.0101,
+    sourceUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/vti'
+  });
+
+  const fidelity = parseOfficialProviderPage({
+    providerId: 'fidelity',
+    finalUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911750',
+    text: '<title>FXAIX - Fidelity &reg; 500 Index Fund | Fidelity Investments</title><section>30-Day Yield<sup>3</sup><span>AS OF 08/19/2026</span><strong>1.04%</strong></section><input value="FXAIX">'
+  });
+  assert.deepEqual(fidelity, {
+    ok: true, name: 'Fidelity® 500 Index Fund', symbol: 'FXAIX', trailingYield: 0.0104,
+    sourceUrl: 'https://fundresearch.fidelity.com/mutual-funds/summary/315911750'
+  });
+});
+
+test('label/value swaps, nearby numbers, and ticker-as-name candidates fail closed', () => {
+  const base = {
+    providerId: 'vanguard', finalUrl: 'https://investor.vanguard.com/investment-products/etfs/profile/vti'
+  };
+  for (const text of [
+    '<title>VTI-Vanguard Total Stock Market ETF | Vanguard</title><p>1.01% 30 day SEC yield</p>',
+    '<title>VTI-Vanguard Total Stock Market ETF | Vanguard</title><p>30 day SEC yield</p><p>Unrelated return: 1.01%</p>',
+    '<p>Fund name: VTI</p><p>Ticker: VTI</p><p>30 day SEC yield: 1.01%</p>'
+  ]) {
+    const result = parseOfficialProviderPage({ ...base, text });
+    assert.equal(result.ok, false, text);
+  }
 });
 
 test('refresh core is deterministic and has no IO dependencies', async () => {
