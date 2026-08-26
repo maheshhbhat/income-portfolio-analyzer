@@ -119,6 +119,12 @@ function responseFor(entry, { ok = true, url = entry.facts.name.sourceUrl, text 
   };
 }
 
+function verifiedResponseFor(entry, refreshYield) {
+  return responseFor(entry, {
+    text: `Fund name: ${entry.name}\nTicker: ${entry.symbol}\nTrailing yield: ${(refreshYield * 100).toFixed(4)}%`
+  });
+}
+
 async function request(handler, { method, url, body } = {}) {
   const req = new EventEmitter();
   req.method = method;
@@ -170,6 +176,52 @@ test('production refresh handler rejects every failure class without mutating th
       assert.deepEqual(after.payload.snapshot, before.payload.snapshot, 'active snapshot changed after rejection');
       assert.equal(after.payload.snapshot.asOf, before.payload.snapshot.asOf, 'active as-of date changed after rejection');
       assert.equal(await readFile(persisted.target, 'utf8'), persisted.bytes, 'persisted last-known-good bytes changed');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+test('production refresh handler atomically accepts fully verifiable Vanguard and Fidelity candidates', async (t) => {
+  const refreshDate = '2026-08-25';
+  for (const seed of [VANGUARD_SNAPSHOT, FIDELITY_SNAPSHOT]) await t.test(seed.providerId, async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'provider-refresh-regression-'));
+    try {
+      const runtime = path.join(root, '.runtime', 'provider-snapshots');
+      const target = path.join(runtime, `${seed.providerId}.json`);
+      await mkdir(runtime, { recursive: true });
+      await writeFile(target, `${JSON.stringify(seed)}\n`, 'utf8');
+      const beforeBytes = await readFile(target, 'utf8');
+      const refreshedYields = new Map(seed.entries.map((entry) => [entry.facts.name.sourceUrl, entry.yield + 0.0001]));
+      let renameCalls = 0;
+      const handler = createRequestHandler({
+        root,
+        now: () => refreshDate,
+        fetchImpl: async (url) => {
+          const entry = seed.entries.find((item) => item.facts.name.sourceUrl === url);
+          return verifiedResponseFor(entry, refreshedYields.get(url));
+        },
+        fsOps: { mkdir, readFile, unlink, writeFile, rename: async (...args) => { renameCalls += 1; return rename(...args); } }
+      });
+
+      const before = await request(handler, { method: 'GET', url: `/api/providers/${seed.providerId}/active-snapshot` });
+      const refresh = await request(handler, { method: 'POST', url: `/api/providers/${seed.providerId}/refresh` });
+      const active = await request(handler, { method: 'GET', url: `/api/providers/${seed.providerId}/active-snapshot` });
+
+      assert.equal(refresh.status, 200);
+      assert.equal(refresh.payload.ok, true);
+      assert.equal(renameCalls, 1, 'an accepted complete candidate is persisted with one atomic rename');
+      assert.equal(refresh.payload.snapshot.asOf, refreshDate);
+      assert.deepEqual(active.payload.snapshot, refresh.payload.snapshot, 'active-snapshot read-back must return the accepted candidate');
+      assert.notDeepEqual(active.payload.snapshot, before.payload.snapshot, 'accepted candidate must replace the prior snapshot');
+      assert.ok(active.payload.snapshot.entries.every((entry) => (
+        entry.facts.name.status === 'verified'
+        && entry.facts.ticker.status === 'verified'
+        && entry.facts.trailingYield.status === 'verified'
+        && entry.facts.name.asOf === refreshDate
+        && entry.facts.trailingYield.value.toFixed(4) === refreshedYields.get(entry.facts.name.sourceUrl).toFixed(4)
+      )));
+      assert.notEqual(await readFile(target, 'utf8'), beforeBytes, 'accepted candidate must replace persisted last-known-good bytes');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
