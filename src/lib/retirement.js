@@ -21,11 +21,23 @@ export const FIXED_INFLATION_COMPARISON_SCENARIOS = Object.freeze([
   Object.freeze({ label: '4%', inflationRate: 0.04 })
 ]);
 
-/**
- * @param {{investmentAmount: number, desiredAnnualWithdrawal: number, horizonYears: number, inflationRate: number}} input
- * @param {Array<{symbol: string, name: string, type: string, yield: number, growthRate: number}>} securities
- */
-export function computeRetirementPlan(input, securities) {
+function validateSecurity(security) {
+  return Boolean(
+    security &&
+    typeof security.symbol === 'string' &&
+    security.symbol.trim() &&
+    typeof security.name === 'string' &&
+    security.name.trim() &&
+    typeof security.type === 'string' &&
+    security.type.trim() &&
+    typeof security.yield === 'number' &&
+    Number.isFinite(security.yield) &&
+    typeof security.growthRate === 'number' &&
+    Number.isFinite(security.growthRate)
+  );
+}
+
+export function validateRetirementInputs(input, securities) {
   const { investmentAmount, desiredAnnualWithdrawal, horizonYears, inflationRate } = input || {};
 
   if (typeof investmentAmount !== 'number' || !Number.isFinite(investmentAmount) || investmentAmount <= 0) {
@@ -43,7 +55,25 @@ export function computeRetirementPlan(input, securities) {
   if (!Array.isArray(securities) || securities.length < 2) {
     return { ok: false, error: 'No curated securities are available to build an allocation.' };
   }
+  if (!securities.every(validateSecurity)) {
+    return { ok: false, error: 'Curated securities must each include a symbol, name, type, yield, and growth rate.' };
+  }
 
+  const symbols = securities.map((security) => security.symbol);
+  if (new Set(symbols).size !== symbols.length) {
+    return { ok: false, error: 'Curated securities must use unique symbols.' };
+  }
+
+  return {
+    ok: true,
+    investmentAmount,
+    desiredAnnualWithdrawal,
+    horizonYears,
+    inflationRate
+  };
+}
+
+export function buildRetirementPlanBasis({ investmentAmount, desiredAnnualWithdrawal }, securities) {
   // The initial allocation is chosen against the year-1 (unadjusted) withdrawal
   // rate only - inflation affects the multi-year simulation, not the bracket
   // selection, so the allocation/bracket engine is unchanged by this increment.
@@ -71,12 +101,35 @@ export function computeRetirementPlan(input, securities) {
   const blendedGrowth = allocations.reduce((sum, a) => sum + a.amount * a.growthRate, 0) / investmentAmount;
   const blendedTotalReturn = blendedYield + blendedGrowth;
 
+  return {
+    targetRate,
+    unreachable,
+    bestAchievableRate: bestAchievableMetric,
+    allocations,
+    totalAllocated,
+    blendedYield,
+    blendedGrowth,
+    blendedTotalReturn
+  };
+}
+
+/**
+ * @param {{investmentAmount: number, desiredAnnualWithdrawal: number, horizonYears: number, inflationRate: number}} input
+ * @param {Array<{symbol: string, name: string, type: string, yield: number, growthRate: number}>} securities
+ */
+export function computeRetirementPlan(input, securities) {
+  const validated = validateRetirementInputs(input, securities);
+  if (!validated.ok) return validated;
+
+  const { investmentAmount, desiredAnnualWithdrawal, horizonYears, inflationRate } = validated;
+  const basis = buildRetirementPlanBasis(validated, securities);
+
   const simulation = simulateWithdrawals({
     investmentAmount,
     desiredAnnualWithdrawal,
     horizonYears,
-    blendedYield,
-    blendedGrowth,
+    blendedYield: basis.blendedYield,
+    blendedGrowth: basis.blendedGrowth,
     inflationRate
   });
 
@@ -86,14 +139,7 @@ export function computeRetirementPlan(input, securities) {
     desiredAnnualWithdrawal,
     horizonYears,
     inflationRate,
-    targetRate,
-    unreachable,
-    bestAchievableRate: bestAchievableMetric,
-    allocations,
-    totalAllocated,
-    blendedYield,
-    blendedGrowth,
-    blendedTotalReturn,
+    ...basis,
     ...simulation
   };
 }
