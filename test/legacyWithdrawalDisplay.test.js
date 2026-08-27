@@ -55,7 +55,7 @@ function formatUsdCents(cents) {
   return `${cents < 0 ? '-' : ''}$${wholeDollars.toLocaleString('en-US')}.${centsPart}`;
 }
 
-test('legacy-withdrawal browser flow renders the verified catalog result and clears stale output before refusals', async () => {
+test('OE-SCALE-1: representative browser flow renders the verified catalog result and clears stale output before refusals', async () => {
   const expected = computeLegacyWithdrawal({
     investmentAmountCents: 50_000_000,
     horizonYears: 30,
@@ -63,6 +63,7 @@ test('legacy-withdrawal browser flow renders the verified catalog result and cle
     endingBalanceFloorCents: 10_000_000
   }, SECURITIES);
   assert.equal(expected.ok, true);
+  assert.ok(expected.projection.endingBalanceCents >= 10_000_000, 'representative result meets the requested $100,000 floor');
 
   const savedDocument = globalThis.document;
   globalThis.document = appDocument();
