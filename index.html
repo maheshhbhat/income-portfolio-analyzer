@@ -171,6 +171,30 @@
       </section>
     </section>
 
+    <section class="comparison comparison--scenario" aria-labelledby="scenario-comparison-title">
+      <h2 id="scenario-comparison-title" class="section-title">Steady vs. early downturn comparison</h2>
+      <p class="page__subtitle">
+        Use the same retirement inputs above to compare a steady illustrative path against an illustrative
+        deterministic early downturn. This browser flow always uses this repository&apos;s curated illustrative
+        securities only, not provider snapshots or live data.
+      </p>
+      <div class="comparison__actions">
+        <button type="button" id="scenario-comparison-submit" class="button-secondary">Compare steady and early downturn</button>
+      </div>
+
+      <p id="scenario-comparison-error" class="error" role="alert" hidden></p>
+
+      <section id="scenario-comparison-results" class="results" hidden aria-live="polite">
+        <p id="scenario-deterministic-disclosure" class="comparison__disclosure"></p>
+        <p id="scenario-simplification-disclosure" class="comparison__disclosure"></p>
+        <p id="scenario-sequence-disclosure" class="comparison__disclosure"></p>
+
+        <div id="scenario-comparison-summary" class="comparison__summary"></div>
+
+        <div id="scenario-comparison-projections" class="comparison__projections"></div>
+      </section>
+    </section>
+
     <section class="maximum-withdrawal" aria-labelledby="maximum-withdrawal-title">
       <h2 id="maximum-withdrawal-title" class="section-title">Maximum sustainable withdrawal</h2>
       <p class="page__subtitle">
