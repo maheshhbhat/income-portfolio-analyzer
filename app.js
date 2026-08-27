@@ -1,4 +1,4 @@
-import { computeRetirementPlan } from './src/lib/retirement.js';
+import { computeFixedInflationComparison, computeRetirementPlan } from './src/lib/retirement.js';
 import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
 import { computeMaxSustainableWithdrawal } from './src/lib/maxSustainableWithdrawal.js';
 import { SECURITIES } from './src/data/securities.js';
@@ -19,6 +19,11 @@ const providerSelect = document.getElementById('provider-select');
 const refreshDataButton = document.getElementById('refresh-data');
 const providerStatus = document.getElementById('provider-status');
 const providerError = document.getElementById('provider-error');
+const comparisonSubmit = document.getElementById('comparison-submit');
+const comparisonError = document.getElementById('comparison-error');
+const comparisonResults = document.getElementById('comparison-results');
+const comparisonSummary = document.getElementById('comparison-summary');
+const comparisonProjections = document.getElementById('comparison-projections');
 
 let activeProviderSnapshot = null;
 
@@ -134,6 +139,28 @@ function clearError() {
   errorEl.textContent = '';
 }
 
+function clearComparisonError() {
+  if (!comparisonError) return;
+  comparisonError.hidden = true;
+  comparisonError.textContent = '';
+}
+
+function clearComparisonOutputs() {
+  if (!comparisonResults) return;
+  comparisonResults.hidden = true;
+  comparisonSummary.replaceChildren?.();
+  comparisonProjections.replaceChildren?.();
+  comparisonSummary.innerHTML = '';
+  comparisonProjections.innerHTML = '';
+}
+
+function showComparisonError(message) {
+  if (!comparisonError) return;
+  comparisonError.textContent = message;
+  comparisonError.hidden = false;
+  clearComparisonOutputs();
+}
+
 /**
  * Results are tied to the snapshot used for their calculation. A successful
  * provider refresh therefore makes both calculators stale until the user
@@ -148,6 +175,8 @@ function invalidateCalculatedResults() {
   hideRequiredOutputs();
   requiredBanner.hidden = true;
   requiredAllocationBody.innerHTML = '';
+  clearComparisonError();
+  clearComparisonOutputs();
 }
 
 function render(result) {
@@ -220,6 +249,117 @@ form.addEventListener('submit', async (event) => {
   }
 
   render(result);
+});
+
+function comparisonCard(result, label) {
+  const card = document.createElement('article');
+  card.className = 'comparison__card';
+
+  const heading = document.createElement('h3');
+  heading.textContent = label;
+  card.appendChild(heading);
+
+  const list = document.createElement('dl');
+  const entries = [
+    ['Outcome', result.lastsFullHorizon
+      ? `Lasts all ${result.horizonYears} years`
+      : `Depletes in year ${result.depletionYear} of ${result.horizonYears}`],
+    ['Ending balance', currency.format(result.endingBalance)],
+    ['Blended yield', percent(result.blendedYield)],
+    ['Blended growth', percent(result.blendedGrowth)],
+    ['Blended total return', percent(result.blendedTotalReturn)]
+  ];
+
+  for (const [term, value] of entries) {
+    const dt = document.createElement('dt');
+    dt.textContent = term;
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    list.appendChild(dt);
+    list.appendChild(dd);
+  }
+
+  card.appendChild(list);
+  return card;
+}
+
+function comparisonProjection(result, label) {
+  const section = document.createElement('section');
+  section.className = 'comparison__projection';
+
+  const heading = document.createElement('h3');
+  heading.textContent = `${label} year-by-year projection`;
+  section.appendChild(heading);
+
+  const table = document.createElement('table');
+  table.className = 'allocation-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th>Starting balance</th>
+        <th>Dividend income</th>
+        <th>Growth</th>
+        <th>Withdrawal</th>
+        <th>Ending balance</th>
+      </tr>
+    </thead>
+  `;
+  const body = document.createElement('tbody');
+
+  for (const row of result.years) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.year}</td>
+      <td>${currency.format(row.startingBalance)}</td>
+      <td>${currency.format(row.dividendIncome)}</td>
+      <td>${currency.format(row.growthAmount)}</td>
+      <td>${currency.format(row.withdrawalPaid)}</td>
+      <td>${currency.format(row.endingBalance)}</td>
+    `;
+    body.appendChild(tr);
+  }
+
+  table.appendChild(body);
+  section.appendChild(table);
+  return section;
+}
+
+function renderComparison(comparison) {
+  clearComparisonError();
+  clearComparisonOutputs();
+
+  for (const scenario of comparison.scenarios) {
+    comparisonSummary.appendChild(comparisonCard(scenario.result, scenario.label));
+    comparisonProjections.appendChild(comparisonProjection(scenario.result, scenario.label));
+  }
+
+  comparisonResults.hidden = false;
+}
+
+async function runComparison() {
+  clearComparisonError();
+  clearComparisonOutputs();
+
+  const investmentAmount = Number.parseFloat(document.getElementById('investment-amount').value);
+  const desiredAnnualWithdrawal = Number.parseFloat(document.getElementById('desired-income').value);
+  const horizonYears = Number.parseFloat(document.getElementById('horizon-years').value);
+
+  const comparison = computeFixedInflationComparison(
+    { investmentAmount, desiredAnnualWithdrawal, horizonYears },
+    SECURITIES
+  );
+
+  if (!comparison.ok) {
+    showComparisonError(comparison.error);
+    return;
+  }
+
+  renderComparison(comparison);
+}
+
+comparisonSubmit?.addEventListener('click', () => {
+  runComparison();
 });
 
 // --- Required starting portfolio section ---

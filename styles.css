@@ -52,6 +52,13 @@ body {
   border-radius: 12px;
 }
 
+.form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .form__field {
   display: flex;
   flex-direction: column;
@@ -117,6 +124,18 @@ button[type="submit"] {
   height: fit-content;
 }
 
+.button-secondary {
+  padding: 0.7rem 1.4rem;
+  background: #fff;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  height: fit-content;
+}
+
 button[type="submit"]:hover {
   background: #1a5fce;
 }
@@ -132,6 +151,70 @@ button[type="submit"]:hover {
 
 .results {
   margin-top: 2rem;
+}
+
+.comparison {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.comparison .section-title {
+  margin-top: 0;
+}
+
+.comparison__disclosure {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.comparison__summary,
+.comparison__projections {
+  display: grid;
+  gap: 1rem;
+}
+
+.comparison__summary {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 1.5rem;
+}
+
+.comparison__card,
+.comparison__projection {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  background: #fff;
+}
+
+.comparison__card h3,
+.comparison__projection h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.comparison__card dl {
+  margin: 0;
+}
+
+.comparison__card dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 0.75rem;
+}
+
+.comparison__card dt:first-child {
+  margin-top: 0;
+}
+
+.comparison__card dd {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.comparison__projection table {
+  margin-top: 0.75rem;
 }
 
 .banner {
