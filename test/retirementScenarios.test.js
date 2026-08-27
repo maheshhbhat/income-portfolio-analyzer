@@ -40,11 +40,8 @@ test('early downturn uses steady blended yield and steady blended growth minus e
 
   const steadyYear1 = result.steady.years[0];
   const downturnYear1 = result.earlyDownturn.years[0];
-  assert.ok(Math.abs(downturnYear1.blendedYield - steadyYear1.blendedYield) < CENT);
-  assert.ok(
-    Math.abs(downturnYear1.blendedGrowth - (steadyYear1.blendedGrowth + EARLY_DOWNTURN_GROWTH_ADJUSTMENT)) < CENT,
-    `expected ${steadyYear1.blendedGrowth + EARLY_DOWNTURN_GROWTH_ADJUSTMENT}, got ${downturnYear1.blendedGrowth}`
-  );
+  assert.equal(downturnYear1.blendedYield, steadyYear1.blendedYield);
+  assert.equal(downturnYear1.blendedGrowth, steadyYear1.blendedGrowth + EARLY_DOWNTURN_GROWTH_ADJUSTMENT);
 
   for (let index = 1; index < result.earlyDownturn.years.length; index++) {
     const steadyRow = result.steady.years[index];
@@ -108,6 +105,42 @@ test('invalid scenario input returns actionable errors without throwing', () => 
   assert.equal(badInvestment.ok, false);
   assert.match(badInvestment.error, /investment amount/i);
 
+  const badWithdrawal = computeRetirementScenarios(
+    {
+      investmentAmount: 1000000,
+      desiredAnnualWithdrawal: -1,
+      horizonYears: 30,
+      inflationRate: 0.03
+    },
+    SECURITIES
+  );
+  assert.equal(badWithdrawal.ok, false);
+  assert.match(badWithdrawal.error, /withdrawal/i);
+
+  const badHorizon = computeRetirementScenarios(
+    {
+      investmentAmount: 1000000,
+      desiredAnnualWithdrawal: 30000,
+      horizonYears: 0,
+      inflationRate: 0.03
+    },
+    SECURITIES
+  );
+  assert.equal(badHorizon.ok, false);
+  assert.match(badHorizon.error, /horizon/i);
+
+  const badInflation = computeRetirementScenarios(
+    {
+      investmentAmount: 1000000,
+      desiredAnnualWithdrawal: 30000,
+      horizonYears: 30,
+      inflationRate: -0.01
+    },
+    SECURITIES
+  );
+  assert.equal(badInflation.ok, false);
+  assert.match(badInflation.error, /inflation/i);
+
   const badCuratedSet = computeRetirementScenarios(
     {
       investmentAmount: 1000000,
@@ -119,6 +152,24 @@ test('invalid scenario input returns actionable errors without throwing', () => 
   );
   assert.equal(badCuratedSet.ok, false);
   assert.match(badCuratedSet.error, /curated securities/i);
+});
+
+test('duplicate curated symbols are refused actionably', () => {
+  const duplicateSymbols = computeRetirementScenarios(
+    {
+      investmentAmount: 1000000,
+      desiredAnnualWithdrawal: 30000,
+      horizonYears: 30,
+      inflationRate: 0.03
+    },
+    [
+      SECURITIES[0],
+      { ...SECURITIES[1], symbol: SECURITIES[0].symbol }
+    ]
+  );
+
+  assert.equal(duplicateSymbols.ok, false);
+  assert.match(duplicateSymbols.error, /unique symbols/i);
 });
 
 test('invalid curated-security entries are refused actionably', () => {
