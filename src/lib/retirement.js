@@ -15,6 +15,12 @@ import { bracketAndBlend } from './allocation.js';
 // allocation engine through a single import boundary.
 export { bracketAndBlend };
 
+export const FIXED_INFLATION_COMPARISON_SCENARIOS = Object.freeze([
+  Object.freeze({ label: '2%', inflationRate: 0.02 }),
+  Object.freeze({ label: '3%', inflationRate: 0.03 }),
+  Object.freeze({ label: '4%', inflationRate: 0.04 })
+]);
+
 /**
  * @param {{investmentAmount: number, desiredAnnualWithdrawal: number, horizonYears: number, inflationRate: number}} input
  * @param {Array<{symbol: string, name: string, type: string, yield: number, growthRate: number}>} securities
@@ -89,6 +95,42 @@ export function computeRetirementPlan(input, securities) {
     blendedGrowth,
     blendedTotalReturn,
     ...simulation
+  };
+}
+
+/**
+ * Pure deterministic comparison across the fixed illustrative inflation cases.
+ *
+ * @param {{investmentAmount: number, desiredAnnualWithdrawal: number, horizonYears: number, inflationRate?: number}} input
+ * @param {Array<{symbol: string, name: string, type: string, yield: number, growthRate: number}>} securities
+ * @param {(input: {investmentAmount: number, desiredAnnualWithdrawal: number, horizonYears: number, inflationRate: number}, securities: Array<object>) => object} [computePlan]
+ */
+export function computeFixedInflationComparison(input, securities, computePlan = computeRetirementPlan) {
+  const scenarios = [];
+
+  for (const scenario of FIXED_INFLATION_COMPARISON_SCENARIOS) {
+    const result = computePlan(
+      {
+        ...input,
+        inflationRate: scenario.inflationRate
+      },
+      securities
+    );
+
+    if (!result?.ok) {
+      return result;
+    }
+
+    scenarios.push({
+      label: scenario.label,
+      inflationRate: scenario.inflationRate,
+      result
+    });
+  }
+
+  return {
+    ok: true,
+    scenarios
   };
 }
 

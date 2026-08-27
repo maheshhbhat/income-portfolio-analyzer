@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeRetirementPlan, simulateWithdrawals } from '../src/lib/retirement.js';
+import {
+  computeFixedInflationComparison,
+  computeRetirementPlan,
+  FIXED_INFLATION_COMPARISON_SCENARIOS,
+  simulateWithdrawals
+} from '../src/lib/retirement.js';
 import { SECURITIES } from '../src/data/securities.js';
 
 const CENT = 0.01;
@@ -332,4 +337,42 @@ test('simulateWithdrawals is a pure function usable independently of the allocat
   assert.equal(result.lastsFullHorizon, true);
   const expected = 100000 * Math.pow(1.06, 3) - 5000 * (Math.pow(1.06, 2) + Math.pow(1.06, 1) + Math.pow(1.06, 0));
   assert.ok(Math.abs(result.endingBalance - expected) < CENT);
+});
+
+test('fixed-inflation comparison returns exactly the ordered 2%, 3%, and 4% scenarios', () => {
+  const input = {
+    investmentAmount: 500000,
+    desiredAnnualWithdrawal: 15000,
+    horizonYears: 10
+  };
+
+  const result = computeFixedInflationComparison(input, SECURITIES);
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    result.scenarios.map((scenario) => ({
+      label: scenario.label,
+      inflationRate: scenario.inflationRate
+    })),
+    FIXED_INFLATION_COMPARISON_SCENARIOS
+  );
+
+  for (const scenario of result.scenarios) {
+    assert.equal(scenario.result.ok, true);
+    assert.equal(scenario.result.inflationRate, scenario.inflationRate);
+  }
+});
+
+test('fixed-inflation comparison returns the existing actionable refusal shape and no partial scenarios for invalid input', () => {
+  const input = {
+    investmentAmount: 500000,
+    desiredAnnualWithdrawal: 15000,
+    horizonYears: 0
+  };
+
+  const singlePlanRefusal = computeRetirementPlan(input, SECURITIES);
+  const comparisonRefusal = computeFixedInflationComparison(input, SECURITIES);
+
+  assert.deepEqual(comparisonRefusal, singlePlanRefusal);
+  assert.equal(comparisonRefusal.ok, false);
+  assert.equal('scenarios' in comparisonRefusal, false);
 });
