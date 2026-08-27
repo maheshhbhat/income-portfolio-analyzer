@@ -25,3 +25,13 @@ test('comparison browser code is fixed to the pure curated comparison API and no
     assert.equal(comparisonSection.includes(forbidden), false, `comparison flow must not use ${forbidden}`);
   }
 });
+
+test('comparison Chrome procedure remains owner-executable guidance, not an execution record', async () => {
+  const procedure = await readFile(new URL('./comparisonChromeProcedure.md', import.meta.url), 'utf8');
+
+  assert.match(procedure, /owner-executable Google Chrome procedure/i);
+  assert.match(procedure, /After all delivery PRs[\s\S]*owner performs the real run/i);
+  assert.match(procedure, /Record the elapsed time/i);
+  assert.match(procedure, /page generated zero console[\s\S]*errors/i);
+  assert.equal(/## Execution record/i.test(procedure), false, 'procedure must not contain a worker-authored execution record');
+});
