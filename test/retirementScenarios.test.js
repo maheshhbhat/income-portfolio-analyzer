@@ -42,12 +42,22 @@ test('early downturn uses steady blended yield and steady blended growth minus e
   const downturnYear1 = result.earlyDownturn.years[0];
   assert.equal(downturnYear1.blendedYield, steadyYear1.blendedYield);
   assert.equal(downturnYear1.blendedGrowth, steadyYear1.blendedGrowth + EARLY_DOWNTURN_GROWTH_ADJUSTMENT);
+  assert.equal(
+    downturnYear1.blendedTotalReturn,
+    steadyYear1.blendedTotalReturn + EARLY_DOWNTURN_GROWTH_ADJUSTMENT
+  );
+  assert.equal(downturnYear1.withdrawalRequested, steadyYear1.withdrawalRequested);
 
   for (let index = 1; index < result.earlyDownturn.years.length; index++) {
     const steadyRow = result.steady.years[index];
     const downturnRow = result.earlyDownturn.years[index];
     assert.ok(Math.abs(downturnRow.blendedYield - steadyRow.blendedYield) < CENT, `year ${index + 1} yield mismatch`);
     assert.ok(Math.abs(downturnRow.blendedGrowth - steadyRow.blendedGrowth) < CENT, `year ${index + 1} growth mismatch`);
+    assert.ok(
+      Math.abs(downturnRow.blendedTotalReturn - steadyRow.blendedTotalReturn) < CENT,
+      `year ${index + 1} total-return mismatch`
+    );
+    assert.equal(downturnRow.withdrawalRequested, steadyRow.withdrawalRequested);
   }
 });
 
@@ -76,20 +86,83 @@ test('allocations stay on integer-cent boundaries, sum exactly to the input port
 
 test('representative scenario work is bounded by horizon years and selected securities, not portfolio cents', () => {
   const horizonYears = 30;
-  const result = computeRetirementScenarios(
-    {
-      investmentAmount: 1000000,
-      desiredAnnualWithdrawal: 30000,
-      horizonYears,
-      inflationRate: 0.03
-    },
-    SECURITIES
-  );
+  let powCalls = 0;
+  const originalPow = Math.pow;
+  Math.pow = (...args) => {
+    powCalls += 1;
+    return originalPow(...args);
+  };
 
-  assert.equal(result.ok, true);
-  assert.equal(result.allocations.length <= SECURITIES.length, true);
-  assert.equal(result.steady.years.length <= horizonYears, true);
-  assert.equal(result.earlyDownturn.years.length <= horizonYears, true);
+  function withObservedSecurities(securities) {
+    const reads = {
+      symbol: 0,
+      name: 0,
+      type: 0,
+      yield: 0,
+      growthRate: 0
+    };
+
+    const observed = securities.map((security) => ({
+      get symbol() {
+        reads.symbol += 1;
+        return security.symbol;
+      },
+      get name() {
+        reads.name += 1;
+        return security.name;
+      },
+      get type() {
+        reads.type += 1;
+        return security.type;
+      },
+      get yield() {
+        reads.yield += 1;
+        return security.yield;
+      },
+      get growthRate() {
+        reads.growthRate += 1;
+        return security.growthRate;
+      }
+    }));
+
+    return { observed, reads };
+  }
+
+  try {
+    const representativeSet = withObservedSecurities(SECURITIES);
+    const extraCentSet = withObservedSecurities(SECURITIES);
+
+    const representative = computeRetirementScenarios(
+      {
+        investmentAmount: 1000000,
+        desiredAnnualWithdrawal: 30000,
+        horizonYears,
+        inflationRate: 0.03
+      },
+      representativeSet.observed
+    );
+    const powCallsAfterRepresentative = powCalls;
+    const extraCent = computeRetirementScenarios(
+      {
+        investmentAmount: 1000000.01,
+        desiredAnnualWithdrawal: 30000,
+        horizonYears,
+        inflationRate: 0.03
+      },
+      extraCentSet.observed
+    );
+
+    assert.equal(representative.ok, true);
+    assert.equal(extraCent.ok, true);
+    assert.equal(representative.allocations.length <= SECURITIES.length, true);
+    assert.equal(representative.steady.years.length, horizonYears);
+    assert.equal(representative.earlyDownturn.years.length, horizonYears);
+    assert.equal(powCallsAfterRepresentative, horizonYears * 2);
+    assert.equal(powCalls, horizonYears * 4);
+    assert.deepEqual(representativeSet.reads, extraCentSet.reads);
+  } finally {
+    Math.pow = originalPow;
+  }
 });
 
 test('invalid scenario input returns actionable errors without throwing', () => {
