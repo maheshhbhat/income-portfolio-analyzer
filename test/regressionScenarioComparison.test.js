@@ -71,3 +71,18 @@ test('steady scenario remains a regression-equivalent wrapper over the existing 
     steadyPlan.years
   );
 });
+
+test('scenario comparison Chrome UAT procedure requires exact-head owner evidence and representative responsiveness observations', async () => {
+  const procedure = await readFile(new URL('./scenarioComparisonChromeUat.md', import.meta.url), 'utf8');
+
+  assert.match(procedure, /owner-executable Chrome procedure/i);
+  assert.match(procedure, /does not substitute for the required[\s\S]*owner-recorded Project acceptance evidence/i);
+  assert.match(procedure, /\$1,000,000/);
+  assert.match(procedure, /horizon `30` years/i);
+  assert.match(procedure, /inflation `3` percent/i);
+  assert.match(procedure, /within 1 second/i);
+  assert.match(procedure, /zero console[\s\S]*errors/i);
+  assert.match(procedure, /record the full[\s\S]*commit SHA/i);
+  assert.match(procedure, /local head exactly[\s\S]*matches the application head under review/i);
+  assert.match(procedure, /Durable owner evidence link/i);
+});

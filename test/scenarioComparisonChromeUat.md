@@ -7,8 +7,10 @@ owner-recorded Project acceptance evidence.
 ## Required run procedure
 
 1. Start the application with `npm start`, then open the served local URL in
-   Google Chrome. Open DevTools to the Console panel, enable Preserve log, and
-   clear existing messages.
+   Google Chrome. Before recording a pass, confirm the local head exactly
+   matches the application head under review and be prepared to record the full
+   commit SHA in the owner evidence. Open DevTools to the Console panel, enable
+   Preserve log, and clear existing messages.
 2. Leave **Fund provider** set to **Illustrative comparison**.
 3. In **Steady vs. early downturn comparison**, enter a starting portfolio of
    `$1,000,000`, desired annual withdrawal `$30,000`, horizon `30` years, and
@@ -30,6 +32,10 @@ owner-recorded Project acceptance evidence.
 9. Inspect the Console. Record pass only if the page generated zero console
    errors during both the valid and invalid submissions. Ignore messages from
    browser extensions if any are present.
+10. Put the measured elapsed time, the full commit SHA, the observed outputs,
+    and the console result into durable owner acceptance evidence for the head
+    under review. Do not treat this checked-in Markdown file as the acceptance
+    record.
 
 ## Owner record template
 
@@ -41,7 +47,7 @@ in this file.
 | Run at | |
 | Chrome version | |
 | Local URL | |
-| Owner-verified application head | |
+| Owner-verified application head (full commit SHA) | |
 | Provider | Illustrative comparison |
 | Measured elapsed time | |
 | Visible scenario summaries | |
