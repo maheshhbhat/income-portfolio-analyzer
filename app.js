@@ -2,6 +2,7 @@ import { computeFixedInflationComparison, computeRetirementPlan } from './src/li
 import { computeRetirementScenarios } from './src/lib/retirementScenarios.js';
 import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
 import { computeMaxSustainableWithdrawal } from './src/lib/maxSustainableWithdrawal.js';
+import { computeLegacyWithdrawal } from './src/lib/legacyWithdrawal.js';
 import { SECURITIES } from './src/data/securities.js';
 import { selectProvider } from './src/data/providers/index.js';
 
@@ -33,6 +34,16 @@ const scenarioComparisonProjections = document.getElementById('scenario-comparis
 const scenarioDeterministicDisclosure = document.getElementById('scenario-deterministic-disclosure');
 const scenarioSimplificationDisclosure = document.getElementById('scenario-simplification-disclosure');
 const scenarioSequenceDisclosure = document.getElementById('scenario-sequence-disclosure');
+const legacyWithdrawalForm = document.getElementById('legacy-withdrawal-form');
+const legacyWithdrawalError = document.getElementById('legacy-withdrawal-error');
+const legacyWithdrawalRefusal = document.getElementById('legacy-withdrawal-refusal');
+const legacyWithdrawalResults = document.getElementById('legacy-withdrawal-results');
+const legacyWithdrawalBanner = document.getElementById('legacy-withdrawal-banner');
+const legacyWithdrawalValue = document.getElementById('legacy-withdrawal-value');
+const legacyEndingBalance = document.getElementById('legacy-ending-balance');
+const legacyCatalogReturn = document.getElementById('legacy-catalog-return');
+const legacyAllocationBody = document.getElementById('legacy-allocation-body');
+const legacyProjectionBody = document.getElementById('legacy-projection-body');
 
 let activeProviderSnapshot = null;
 
@@ -47,6 +58,27 @@ const TYPE_LABELS = {
   'bond-etf': 'Bond ETF'
 };
 const formatType = (type) => TYPE_LABELS[type] || type;
+
+function parseUsdInputToCents(value) {
+  const trimmed = `${value ?? ''}`.trim();
+  if (!trimmed) return NaN;
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(trimmed)) return NaN;
+
+  const [dollars, cents = ''] = trimmed.split('.');
+  const normalizedCents = `${cents}00`.slice(0, 2);
+  const amountCents = Number(dollars) * 100 + Number(normalizedCents);
+  return Number.isSafeInteger(amountCents) ? amountCents : NaN;
+}
+
+function formatUsdCents(cents) {
+  if (!Number.isSafeInteger(cents)) return '';
+  const negative = cents < 0;
+  const absoluteCents = Math.abs(cents);
+  const wholeDollars = Math.floor(absoluteCents / 100);
+  const centsPart = `${absoluteCents % 100}`.padStart(2, '0');
+  const groupedDollars = wholeDollars.toLocaleString('en-US');
+  return `${negative ? '-' : ''}$${groupedDollars}.${centsPart}`;
+}
 
 export function sourceCell(line, documentRef = document) {
   const cell = documentRef.createElement('td');
@@ -535,7 +567,7 @@ const requiredAllocationBody = document.getElementById('required-allocation-body
 
 // Money is integer cents inside the computation; cents become dollars only
 // here, at the display edge.
-const centsToDisplay = (cents) => currency.format(cents / 100);
+const centsToDisplay = (cents) => formatUsdCents(cents);
 
 function hideRequiredOutputs() {
   requiredErrorEl.hidden = true;
@@ -705,4 +737,102 @@ function runMaximumWithdrawalComputation() {
 maximumWithdrawalForm?.addEventListener('submit', (event) => {
   event.preventDefault();
   runMaximumWithdrawalComputation();
+});
+
+// --- Legacy withdrawal section ---
+// This flow is intentionally illustrative-only. It always uses the fixed
+// product-owned catalog from SECURITIES and never provider state or refreshes.
+
+function clearLegacyWithdrawalOutputs() {
+  if (!legacyWithdrawalResults) return;
+  legacyWithdrawalError.hidden = true;
+  legacyWithdrawalError.textContent = '';
+  legacyWithdrawalRefusal.hidden = true;
+  legacyWithdrawalRefusal.textContent = '';
+  legacyWithdrawalResults.hidden = true;
+  legacyWithdrawalBanner.hidden = true;
+  legacyWithdrawalValue.textContent = '—';
+  legacyEndingBalance.textContent = '—';
+  legacyCatalogReturn.textContent = '—';
+  legacyAllocationBody.innerHTML = '';
+  legacyProjectionBody.innerHTML = '';
+}
+
+function legacyWithdrawalInput() {
+  const investmentAmountCents = parseUsdInputToCents(document.getElementById('legacy-portfolio').value);
+  const horizonYears = Number.parseFloat(document.getElementById('legacy-horizon').value);
+  const inflationRate = Number.parseFloat(document.getElementById('legacy-inflation').value) / 100;
+  const endingBalanceFloorInput = document.getElementById('legacy-ending-balance-floor').value;
+  const endingBalanceFloorCents = parseUsdInputToCents(endingBalanceFloorInput);
+
+  if (`${endingBalanceFloorInput ?? ''}`.trim().startsWith('-')) {
+    return { error: 'Desired ending balance must be zero or greater.' };
+  }
+
+  if (!Number.isSafeInteger(investmentAmountCents) || !Number.isSafeInteger(endingBalanceFloorCents)) {
+    return { error: 'Enter the starting portfolio and desired ending balance in whole cents.' };
+  }
+
+  return { input: { investmentAmountCents, horizonYears, inflationRate, endingBalanceFloorCents } };
+}
+
+function renderLegacyWithdrawal(result) {
+  legacyWithdrawalBanner.textContent =
+    `${centsToDisplay(result.maxAnnualWithdrawalCents)} is the highest verified first-year annual withdrawal across the displayed fixed allocation catalog. ` +
+    `This deterministic illustrative result is not financial advice, and no higher shown-catalog withdrawal verified this ending-balance floor.`;
+  legacyWithdrawalBanner.hidden = false;
+  legacyWithdrawalValue.textContent = centsToDisplay(result.maxAnnualWithdrawalCents);
+  legacyEndingBalance.textContent = centsToDisplay(result.projection.endingBalanceCents);
+  legacyCatalogReturn.textContent = percent(result.catalogEntry.totalReturn);
+
+  legacyAllocationBody.innerHTML = '';
+  for (const line of result.allocation) {
+    const row = document.createElement('tr');
+    for (const value of [line.symbol, line.name, formatType(line.type), percent(line.yield), percent(line.growthRate), percent(line.canonicalReturnRate / 1000), centsToDisplay(line.amountCents), percent(line.percentOfPortfolio)]) {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    legacyAllocationBody.appendChild(row);
+  }
+
+  legacyProjectionBody.innerHTML = '';
+  for (const year of result.projection.years) {
+    const row = document.createElement('tr');
+    for (const value of [year.year, formatUsdCents(year.startingBalanceCents), formatUsdCents(year.returnCents), formatUsdCents(year.withdrawalCents), formatUsdCents(year.endingBalanceCents)]) {
+      const cell = document.createElement('td');
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    legacyProjectionBody.appendChild(row);
+  }
+
+  legacyWithdrawalResults.hidden = false;
+}
+
+function runLegacyWithdrawalComputation() {
+  clearLegacyWithdrawalOutputs();
+  const parsed = legacyWithdrawalInput();
+  if (parsed.error) {
+    legacyWithdrawalError.textContent = parsed.error;
+    legacyWithdrawalError.hidden = false;
+    return;
+  }
+
+  const result = computeLegacyWithdrawal(parsed.input, SECURITIES);
+  if (!result.ok) {
+    const target = result.reason === 'no-verified-result' ? legacyWithdrawalRefusal : legacyWithdrawalError;
+    target.textContent = result.reason === 'no-verified-result'
+      ? `No verified result could be calculated for these inputs. No unverified withdrawal is shown. ${result.error}`
+      : result.error;
+    target.hidden = false;
+    return;
+  }
+
+  renderLegacyWithdrawal(result);
+}
+
+legacyWithdrawalForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  runLegacyWithdrawalComputation();
 });

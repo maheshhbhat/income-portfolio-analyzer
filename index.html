@@ -195,6 +195,71 @@
       </section>
     </section>
 
+    <section class="legacy-withdrawal" aria-labelledby="legacy-withdrawal-title">
+      <h2 id="legacy-withdrawal-title" class="section-title">Legacy withdrawal planner</h2>
+      <p class="page__subtitle">
+        Enter a starting portfolio, retirement horizon, inflation rate, and desired ending balance to calculate
+        the highest verified first-year annual withdrawal across this page&apos;s displayed fixed allocation catalog.
+        This browser flow is deterministic, illustrative, and not financial advice.
+      </p>
+
+      <form id="legacy-withdrawal-form" class="form" novalidate>
+        <div class="form__field">
+          <label for="legacy-portfolio">Starting portfolio ($)</label>
+          <input type="number" id="legacy-portfolio" name="legacyPortfolio" min="0.01" step="0.01" placeholder="500000" required />
+        </div>
+        <div class="form__field">
+          <label for="legacy-horizon">Retirement horizon (years)</label>
+          <input type="number" id="legacy-horizon" name="legacyHorizon" min="1" step="1" placeholder="30" required />
+        </div>
+        <div class="form__field">
+          <label for="legacy-inflation">Inflation rate (%/yr)</label>
+          <input type="number" id="legacy-inflation" name="legacyInflation" min="0" step="0.1" value="3" required />
+        </div>
+        <div class="form__field">
+          <label for="legacy-ending-balance-floor">Desired ending balance ($)</label>
+          <input type="number" id="legacy-ending-balance-floor" name="legacyEndingBalanceFloor" min="0" step="0.01" placeholder="100000" required />
+        </div>
+        <button type="submit">Calculate legacy withdrawal</button>
+      </form>
+
+      <p id="legacy-withdrawal-error" class="error" role="alert" hidden></p>
+      <p id="legacy-withdrawal-refusal" class="banner banner--warn" role="alert" hidden></p>
+
+      <section id="legacy-withdrawal-results" class="results" hidden aria-live="polite">
+        <p id="legacy-withdrawal-banner" class="banner banner--success" hidden></p>
+        <div class="summary">
+          <div class="summary__stat">
+            <span class="summary__label">Verified first-year withdrawal</span>
+            <span id="legacy-withdrawal-value" class="summary__value">—</span>
+          </div>
+          <div class="summary__stat">
+            <span class="summary__label">Projected ending balance</span>
+            <span id="legacy-ending-balance" class="summary__value">—</span>
+          </div>
+          <div class="summary__stat">
+            <span class="summary__label">Supporting catalog total return</span>
+            <span id="legacy-catalog-return" class="summary__value">—</span>
+          </div>
+        </div>
+
+        <h3 class="section-title">Supporting allocation</h3>
+        <table class="allocation-table">
+          <thead><tr><th>Symbol</th><th>Name</th><th>Type</th><th>Yield</th><th>Growth</th><th>Total return</th><th>Allocation</th><th>% of portfolio</th></tr></thead>
+          <tbody id="legacy-allocation-body"></tbody>
+        </table>
+
+        <h3 class="section-title">30-row projection</h3>
+        <table class="allocation-table">
+          <thead><tr><th>Year</th><th>Starting balance</th><th>Return</th><th>Withdrawal</th><th>Ending balance</th></tr></thead>
+          <tbody id="legacy-projection-body"></tbody>
+        </table>
+        <p class="maximum-withdrawal__disclosure">
+          This deterministic result is illustrative only, not financial advice, and highest only across the displayed fixed allocation catalog.
+        </p>
+      </section>
+    </section>
+
     <section class="maximum-withdrawal" aria-labelledby="maximum-withdrawal-title">
       <h2 id="maximum-withdrawal-title" class="section-title">Maximum sustainable withdrawal</h2>
       <p class="page__subtitle">
