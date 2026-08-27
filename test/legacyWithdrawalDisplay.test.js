@@ -98,6 +98,17 @@ test('legacy-withdrawal browser flow renders the verified catalog result and cle
     assert.equal(get('legacy-withdrawal-refusal').hidden, true);
 
     get('legacy-portfolio').value = '500000';
+    get('legacy-ending-balance-floor').value = '-1';
+    get('legacy-withdrawal-form').listeners.submit({ preventDefault() {} });
+
+    assert.equal(get('legacy-withdrawal-results').hidden, true, 'negative ending balance does not retain stale output');
+    assert.equal(get('legacy-withdrawal-value').textContent, '—');
+    assert.equal(get('legacy-allocation-body').innerHTML, '');
+    assert.equal(get('legacy-projection-body').innerHTML, '');
+    assert.match(get('legacy-withdrawal-error').textContent, /desired ending balance must be zero or greater/i);
+    assert.equal(get('legacy-withdrawal-refusal').hidden, true);
+
+    get('legacy-portfolio').value = '500000';
     get('legacy-horizon').value = '30';
     get('legacy-inflation').value = '3';
     get('legacy-ending-balance-floor').value = '100000';

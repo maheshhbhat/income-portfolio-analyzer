@@ -762,7 +762,12 @@ function legacyWithdrawalInput() {
   const investmentAmountCents = parseUsdInputToCents(document.getElementById('legacy-portfolio').value);
   const horizonYears = Number.parseFloat(document.getElementById('legacy-horizon').value);
   const inflationRate = Number.parseFloat(document.getElementById('legacy-inflation').value) / 100;
-  const endingBalanceFloorCents = parseUsdInputToCents(document.getElementById('legacy-ending-balance-floor').value);
+  const endingBalanceFloorInput = document.getElementById('legacy-ending-balance-floor').value;
+  const endingBalanceFloorCents = parseUsdInputToCents(endingBalanceFloorInput);
+
+  if (`${endingBalanceFloorInput ?? ''}`.trim().startsWith('-')) {
+    return { error: 'Desired ending balance must be zero or greater.' };
+  }
 
   if (!Number.isSafeInteger(investmentAmountCents) || !Number.isSafeInteger(endingBalanceFloorCents)) {
     return { error: 'Enter the starting portfolio and desired ending balance in whole cents.' };
