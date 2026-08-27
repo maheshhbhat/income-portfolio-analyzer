@@ -77,6 +77,15 @@ test('instrumentation pins canonical breakpoint handling, 23 unique breakpoints,
   assert.equal(result.instrumentation.canonicalBreakpointCount, 23);
   assert.equal(result.instrumentation.regimeCount, 24);
   assert.equal(result.instrumentation.usedPerCentSweep, false);
+  const boundaryRegimes = result.instrumentation.regimeStats.filter((regime) => regime.boundaryCents !== null);
+  assert.equal(boundaryRegimes.length, 23);
+  for (const regime of boundaryRegimes) {
+    assert.equal(
+      regime.boundaryVerificationProjections,
+      1,
+      `breakpoint cent ${regime.boundaryCents} must be verified in regime ${regime.index}`
+    );
+  }
   for (const regime of result.instrumentation.regimeStats) {
     assert.ok(regime.verificationProjections <= 3, `too many verifications in regime ${regime.index}`);
   }

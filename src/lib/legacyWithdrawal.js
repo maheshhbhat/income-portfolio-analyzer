@@ -63,7 +63,10 @@ function solveFixedRateCandidateCents({
   if (totalReturnRate === inflationRate) {
     const denominator = horizonYears * Math.pow(1 + totalReturnRate, horizonYears - 1);
     if (!Number.isFinite(denominator) || denominator <= 0) return null;
-    return (startingPortfolioCents * Math.pow(1 + totalReturnRate, horizonYears) - desiredEndingBalanceCents) / denominator;
+    const root =
+      (startingPortfolioCents * Math.pow(1 + totalReturnRate, horizonYears) - desiredEndingBalanceCents) / denominator;
+    if (!Number.isFinite(root)) return null;
+    return { floorCandidate: Math.floor(root), ceilCandidate: Math.ceil(root) };
   }
 
   const numerator = startingPortfolioCents * Math.pow(1 + totalReturnRate, horizonYears) - desiredEndingBalanceCents;
@@ -72,7 +75,9 @@ function solveFixedRateCandidateCents({
     (totalReturnRate - inflationRate);
 
   if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return null;
-  return numerator / denominator;
+  const root = numerator / denominator;
+  if (!Number.isFinite(root)) return null;
+  return { floorCandidate: Math.floor(root), ceilCandidate: Math.ceil(root) };
 }
 
 function solveReachableRegimeCandidateCents({
@@ -80,14 +85,13 @@ function solveReachableRegimeCandidateCents({
   horizonYears,
   inflationRate,
   desiredEndingBalanceCents,
-  minRate,
-  maxRate
+  minCents,
+  maxCents
 }) {
-  const epsilon = 1 / (startingPortfolioCents * 10);
-  const lowerRate = Math.max(0, minRate);
-  const upperRate = Math.max(lowerRate, maxRate - epsilon);
-  const lowerWithdrawal = lowerRate * startingPortfolioCents;
-  const upperWithdrawal = upperRate * startingPortfolioCents;
+  const lowerWithdrawal = Math.max(0, minCents);
+  const upperWithdrawal = maxCents;
+  const lowerRate = lowerWithdrawal / startingPortfolioCents;
+  const upperRate = upperWithdrawal / startingPortfolioCents;
 
   const lowerEnding = fixedRateEndingBalanceCents({
     startingPortfolioCents,
@@ -108,30 +112,31 @@ function solveReachableRegimeCandidateCents({
     return null;
   }
   if (Number.isFinite(upperEnding) && upperEnding >= desiredEndingBalanceCents) {
-    return upperWithdrawal;
+    return { floorCandidate: upperWithdrawal, ceilCandidate: upperWithdrawal };
   }
 
-  let left = lowerRate;
-  let right = upperRate;
+  let left = lowerWithdrawal;
+  let right = upperWithdrawal;
   for (let step = 0; step < 80; step++) {
-    const middle = (left + right) / 2;
-    const middleWithdrawal = middle * startingPortfolioCents;
+    const middleWithdrawal = Math.floor((left + right) / 2);
+    if (middleWithdrawal === left || middleWithdrawal === right) break;
+    const middleRate = middleWithdrawal / startingPortfolioCents;
     const middleEnding = fixedRateEndingBalanceCents({
       startingPortfolioCents,
       withdrawalCents: middleWithdrawal,
       horizonYears,
       inflationRate,
-      totalReturnRate: middle
+      totalReturnRate: middleRate
     });
 
     if (!Number.isFinite(middleEnding) || middleEnding < desiredEndingBalanceCents) {
-      right = middle;
+      right = middleWithdrawal;
     } else {
-      left = middle;
+      left = middleWithdrawal;
     }
   }
 
-  return left * startingPortfolioCents;
+  return { floorCandidate: left, ceilCandidate: Math.min(upperWithdrawal, left + 1) };
 }
 
 function verifyCandidateCents(candidateCents, input, securities, regimeStats) {
@@ -161,19 +166,25 @@ function verifyCandidateCents(candidateCents, input, securities, regimeStats) {
   };
 }
 
-function evaluateRegimeCandidate(candidateFloat, input, securities, regimeStats, bounds) {
-  if (!Number.isFinite(candidateFloat)) return null;
-
-  const clamped = Math.min(bounds.maxCents, Math.max(bounds.minCents, candidateFloat));
-  const floorCandidate = Math.floor(clamped);
-  const ceilCandidate = Math.ceil(clamped);
-  const candidates = [floorCandidate, ceilCandidate]
+function evaluateRegimeCandidate(candidate, input, securities, regimeStats, bounds) {
+  const candidates = [
+    ...(candidate === null
+      ? []
+      : [
+          Math.min(bounds.maxCents, Math.max(bounds.minCents, candidate.floorCandidate)),
+          Math.min(bounds.maxCents, Math.max(bounds.minCents, candidate.ceilCandidate))
+        ]),
+    bounds.boundaryCents
+  ]
     .filter((candidate, index, values) => values.indexOf(candidate) === index)
     .filter((candidate) => candidate >= bounds.minCents && candidate <= bounds.maxCents);
 
   let best = null;
   for (const candidate of candidates) {
     const result = verifyCandidateCents(candidate, input, securities, regimeStats);
+    if (candidate === bounds.boundaryCents) {
+      regimeStats.boundaryVerificationProjections += 1;
+    }
     if (result?.verified && (best === null || result.candidateCents > best.candidateCents)) {
       best = result;
     }
@@ -196,12 +207,16 @@ function evaluateRegimeCandidate(candidateFloat, input, securities, regimeStats,
 
 function buildRegimeBounds(breakpointsMilli, startingPortfolioCents) {
   const bounds = [];
+  const breakpointCents = breakpointsMilli.map((breakpointMilli) =>
+    Math.floor((breakpointMilli * startingPortfolioCents) / 1000)
+  );
 
   bounds.push({
     index: 0,
     kind: 'constant-low',
     minCents: 0,
-    maxCents: Math.floor((breakpointsMilli[0] * startingPortfolioCents) / 1000),
+    maxCents: breakpointCents[0],
+    boundaryCents: breakpointCents[0],
     minRate: 0,
     maxRate: breakpointsMilli[0] / 1000
   });
@@ -212,8 +227,9 @@ function buildRegimeBounds(breakpointsMilli, startingPortfolioCents) {
     bounds.push({
       index: index + 1,
       kind: 'reachable',
-      minCents: Math.floor((lowerMilli * startingPortfolioCents) / 1000) + 1,
-      maxCents: Math.floor((upperMilli * startingPortfolioCents) / 1000),
+      minCents: breakpointCents[index] + 1,
+      maxCents: breakpointCents[index + 1],
+      boundaryCents: breakpointCents[index + 1],
       minRate: lowerMilli / 1000,
       maxRate: upperMilli / 1000
     });
@@ -222,7 +238,10 @@ function buildRegimeBounds(breakpointsMilli, startingPortfolioCents) {
   bounds.push({
     index: breakpointsMilli.length,
     kind: 'constant-high',
-    minCents: Math.floor((breakpointsMilli[breakpointsMilli.length - 1] * startingPortfolioCents) / 1000) + 1,
+    maxCents: Number.MAX_SAFE_INTEGER,
+    minCents: breakpointCents[breakpointsMilli.length - 1] + 1,
+    maxCents: Number.MAX_SAFE_INTEGER,
+    boundaryCents: null,
     maxCents: Number.MAX_SAFE_INTEGER,
     minRate: breakpointsMilli[breakpointsMilli.length - 1] / 1000,
     maxRate: Infinity
@@ -272,19 +291,21 @@ export function computeLegacyWithdrawal(input, securities, options = {}) {
     const regimeStats = {
       index: bounds.index,
       kind: bounds.kind,
-      verificationProjections: 0
+      verificationProjections: 0,
+      boundaryCents: bounds.boundaryCents,
+      boundaryVerificationProjections: 0
     };
     instrumentation.regimeStats.push(regimeStats);
 
-    let candidateFloat = null;
+    let candidate = null;
     if (bounds.kind === 'reachable') {
-      candidateFloat = solveReachableRegimeCandidateCents({
+      candidate = solveReachableRegimeCandidateCents({
         startingPortfolioCents,
         horizonYears,
         inflationRate,
         desiredEndingBalanceCents,
-        minRate: bounds.minRate,
-        maxRate: bounds.maxRate
+        minCents: bounds.minCents,
+        maxCents: bounds.maxCents
       });
     } else {
       const representativeRate =
@@ -292,7 +313,7 @@ export function computeLegacyWithdrawal(input, securities, options = {}) {
           ? Math.max(0, bounds.maxRate - 0.001)
           : bounds.minRate + 0.001;
       const shape = getClusterShape(securities, representativeRate);
-      candidateFloat = solveFixedRateCandidateCents({
+      candidate = solveFixedRateCandidateCents({
         startingPortfolioCents,
         horizonYears,
         inflationRate,
@@ -301,7 +322,7 @@ export function computeLegacyWithdrawal(input, securities, options = {}) {
       });
     }
 
-    const verified = evaluateRegimeCandidate(candidateFloat, input, securities, regimeStats, bounds);
+    const verified = evaluateRegimeCandidate(candidate, input, securities, regimeStats, bounds);
     if (verified === null || verified.nextCentVerified) {
       continue;
     }
