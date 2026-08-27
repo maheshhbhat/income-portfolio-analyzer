@@ -58,6 +58,24 @@ test('negative desired ending balances reject actionably, while a supported endi
   assert.equal(accepted.nextCentProjection?.meetsEndingBalanceFloor, false);
 });
 
+test('rounding-aware candidate selection proves the exact winner instead of refusing below it', () => {
+  const input = {
+    startingPortfolioCents: 100,
+    horizonYears: 10,
+    inflationRate: 0.03,
+    desiredEndingBalanceCents: 10
+  };
+  const result = computeLegacyWithdrawal(input, SECURITIES, { instrument: true });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.maxAnnualWithdrawalCents, 16);
+  assert.equal(result.projection.meetsEndingBalanceFloor, true);
+  assert.equal(result.nextCentProjection?.meetsEndingBalanceFloor, false);
+  for (const regime of result.instrumentation.regimeStats) {
+    assert.ok(regime.verificationProjections <= 4, `too many verifications in regime ${regime.index}`);
+  }
+});
+
 test('instrumentation pins canonical breakpoint handling, 23 unique breakpoints, 24 regimes, and at most four verification projections per regime', () => {
   const breakpoints = getCanonicalBreakpoints(SECURITIES);
   assert.equal(breakpoints.length, 23);
@@ -87,7 +105,7 @@ test('instrumentation pins canonical breakpoint handling, 23 unique breakpoints,
     );
   }
   for (const regime of result.instrumentation.regimeStats) {
-    assert.ok(regime.verificationProjections <= 3, `too many verifications in regime ${regime.index}`);
+    assert.ok(regime.verificationProjections <= 4, `too many verifications in regime ${regime.index}`);
   }
 });
 

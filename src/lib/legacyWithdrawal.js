@@ -32,25 +32,49 @@ function noVerified(error, instrumentation) {
     : { ok: false, reason: 'no-verified-result', error };
 }
 
-function fixedRateEndingBalanceCents({
-  startingPortfolioCents,
-  withdrawalCents,
-  horizonYears,
-  inflationRate,
-  totalReturnRate
-}) {
-  const grownPrincipal = startingPortfolioCents * Math.pow(1 + totalReturnRate, horizonYears);
+const RATE_SCALE = 1000;
 
-  if (totalReturnRate === inflationRate) {
-    const stream = withdrawalCents * horizonYears * Math.pow(1 + totalReturnRate, horizonYears - 1);
-    return grownPrincipal - stream;
+function canonicalRateMilli(rate) {
+  return Math.round(rate * RATE_SCALE);
+}
+
+function power(base, exponent) {
+  let value = 1n;
+  let factor = base;
+  let remaining = BigInt(exponent);
+  while (remaining > 0n) {
+    if (remaining % 2n === 1n) value *= factor;
+    factor *= factor;
+    remaining /= 2n;
   }
+  return value;
+}
 
-  const stream =
-    (withdrawalCents * (Math.pow(1 + totalReturnRate, horizonYears) - Math.pow(1 + inflationRate, horizonYears))) /
-    (totalReturnRate - inflationRate);
+function roundRateApplication(cents, rateMilli) {
+  return Number((BigInt(cents) * BigInt(RATE_SCALE + rateMilli) * 2n + BigInt(RATE_SCALE)) / (BigInt(RATE_SCALE) * 2n));
+}
 
-  return grownPrincipal - stream;
+function withdrawalSchedule(firstYearWithdrawalCents, horizonYears, inflationMilli) {
+  const schedule = [];
+  let withdrawalCents = firstYearWithdrawalCents;
+  for (let year = 0; year < horizonYears; year++) {
+    schedule.push(withdrawalCents);
+    withdrawalCents = roundRateApplication(withdrawalCents, inflationMilli);
+  }
+  return schedule;
+}
+
+// This is a rational, unrounded closed form used only to choose the one
+// candidate for a regime. Verification remains the rounded cent projection.
+function fixedRateEndingNumerator({ startingPortfolioCents, withdrawalCents, horizonYears, inflationMilli, totalReturnMilli }) {
+  const scale = BigInt(RATE_SCALE);
+  const growth = scale + BigInt(totalReturnMilli);
+  let numerator = BigInt(startingPortfolioCents) * power(growth, horizonYears);
+  const schedule = withdrawalSchedule(withdrawalCents, horizonYears, inflationMilli);
+  for (let year = 0; year < horizonYears; year++) {
+    numerator -= BigInt(schedule[year]) * power(growth, horizonYears - year - 1) * power(scale, year + 1);
+  }
+  return numerator;
 }
 
 function solveFixedRateCandidateCents({
@@ -60,24 +84,44 @@ function solveFixedRateCandidateCents({
   desiredEndingBalanceCents,
   totalReturnRate
 }) {
-  if (totalReturnRate === inflationRate) {
-    const denominator = horizonYears * Math.pow(1 + totalReturnRate, horizonYears - 1);
-    if (!Number.isFinite(denominator) || denominator <= 0) return null;
-    const root =
-      (startingPortfolioCents * Math.pow(1 + totalReturnRate, horizonYears) - desiredEndingBalanceCents) / denominator;
-    if (!Number.isFinite(root)) return null;
-    return { floorCandidate: Math.floor(root), ceilCandidate: Math.ceil(root) };
+  const totalReturnMilli = canonicalRateMilli(totalReturnRate);
+  const inflationMilli = canonicalRateMilli(inflationRate);
+  const target = BigInt(desiredEndingBalanceCents) * power(BigInt(RATE_SCALE), horizonYears);
+  const principal = BigInt(startingPortfolioCents) * power(BigInt(RATE_SCALE + totalReturnMilli), horizonYears);
+  const unitCost = -fixedRateEndingNumerator({
+    startingPortfolioCents: 0,
+    withdrawalCents: 1,
+    horizonYears,
+    inflationMilli,
+    totalReturnMilli
+  });
+  if (unitCost <= 0n || principal < target) return null;
+
+  let candidate = Number((principal - target) / unitCost);
+  // Rounded annual withdrawals can differ materially from a continuous
+  // growing-annuity estimate at small cent values. Two fixed corrections use
+  // rational cent schedules, never a cent-by-cent search or a projection.
+  for (let correction = 0; correction < 2; correction++) {
+    const ending = fixedRateEndingNumerator({
+      startingPortfolioCents,
+      withdrawalCents: candidate,
+      horizonYears,
+      inflationMilli,
+      totalReturnMilli
+    });
+    const nextEnding = fixedRateEndingNumerator({
+      startingPortfolioCents,
+      withdrawalCents: candidate + 1,
+      horizonYears,
+      inflationMilli,
+      totalReturnMilli
+    });
+    const centCost = ending - nextEnding;
+    if (centCost <= 0n) break;
+    candidate += Number((ending - target) / centCost);
   }
-
-  const numerator = startingPortfolioCents * Math.pow(1 + totalReturnRate, horizonYears) - desiredEndingBalanceCents;
-  const denominator =
-    (Math.pow(1 + totalReturnRate, horizonYears) - Math.pow(1 + inflationRate, horizonYears)) /
-    (totalReturnRate - inflationRate);
-
-  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return null;
-  const root = numerator / denominator;
-  if (!Number.isFinite(root)) return null;
-  return { floorCandidate: Math.floor(root), ceilCandidate: Math.ceil(root) };
+  if (!Number.isSafeInteger(candidate)) return null;
+  return { floorCandidate: candidate, ceilCandidate: candidate + 1 };
 }
 
 function solveReachableRegimeCandidateCents({
@@ -88,55 +132,14 @@ function solveReachableRegimeCandidateCents({
   minCents,
   maxCents
 }) {
-  const lowerWithdrawal = Math.max(0, minCents);
-  const upperWithdrawal = maxCents;
-  const lowerRate = lowerWithdrawal / startingPortfolioCents;
-  const upperRate = upperWithdrawal / startingPortfolioCents;
-
-  const lowerEnding = fixedRateEndingBalanceCents({
+  const midpointRate = ((minCents + maxCents) / 2) / startingPortfolioCents;
+  return solveFixedRateCandidateCents({
     startingPortfolioCents,
-    withdrawalCents: lowerWithdrawal,
     horizonYears,
     inflationRate,
-    totalReturnRate: lowerRate
+    desiredEndingBalanceCents,
+    totalReturnRate: midpointRate
   });
-  const upperEnding = fixedRateEndingBalanceCents({
-    startingPortfolioCents,
-    withdrawalCents: upperWithdrawal,
-    horizonYears,
-    inflationRate,
-    totalReturnRate: upperRate
-  });
-
-  if (!Number.isFinite(lowerEnding) || lowerEnding < desiredEndingBalanceCents) {
-    return null;
-  }
-  if (Number.isFinite(upperEnding) && upperEnding >= desiredEndingBalanceCents) {
-    return { floorCandidate: upperWithdrawal, ceilCandidate: upperWithdrawal };
-  }
-
-  let left = lowerWithdrawal;
-  let right = upperWithdrawal;
-  for (let step = 0; step < 80; step++) {
-    const middleWithdrawal = Math.floor((left + right) / 2);
-    if (middleWithdrawal === left || middleWithdrawal === right) break;
-    const middleRate = middleWithdrawal / startingPortfolioCents;
-    const middleEnding = fixedRateEndingBalanceCents({
-      startingPortfolioCents,
-      withdrawalCents: middleWithdrawal,
-      horizonYears,
-      inflationRate,
-      totalReturnRate: middleRate
-    });
-
-    if (!Number.isFinite(middleEnding) || middleEnding < desiredEndingBalanceCents) {
-      right = middleWithdrawal;
-    } else {
-      left = middleWithdrawal;
-    }
-  }
-
-  return { floorCandidate: left, ceilCandidate: Math.min(upperWithdrawal, left + 1) };
 }
 
 function verifyCandidateCents(candidateCents, input, securities, regimeStats) {
@@ -194,12 +197,13 @@ function evaluateRegimeCandidate(candidate, input, securities, regimeStats, boun
 
   const nextCandidate = best.candidateCents + 1;
   if (nextCandidate < bounds.minCents || nextCandidate > bounds.maxCents) {
-    return { ...best, nextCentVerified: false, nextCentProjection: null };
+    return { ...best, regimeStats, nextCentVerified: false, nextCentProjection: null };
   }
 
   const next = verifyCandidateCents(nextCandidate, input, securities, regimeStats);
   return {
     ...best,
+    regimeStats,
     nextCentVerified: next?.verified === true,
     nextCentProjection: next?.projection ?? null
   };
@@ -339,13 +343,13 @@ export function computeLegacyWithdrawal(input, securities, options = {}) {
     );
   }
 
-  const nextCentCheck = verifyCandidateCents(
-    best.candidateCents + 1,
-    input,
-    securities,
-    { verificationProjections: 0 }
-  );
-  if (nextCentCheck?.verified) {
+  const nextCentCheck =
+    best.nextCentProjection === null
+      ? verifyCandidateCents(best.candidateCents + 1, input, securities, best.regimeStats)
+      : null;
+  const nextCentVerified = nextCentCheck?.verified ?? best.nextCentVerified;
+  const nextCentProjection = nextCentCheck?.projection ?? best.nextCentProjection;
+  if (nextCentVerified) {
     return noVerified(
       'A verified global maximum could not be established because one cent more also satisfied the ending-balance floor.',
       options.instrument ? instrumentation : undefined
@@ -364,7 +368,7 @@ export function computeLegacyWithdrawal(input, securities, options = {}) {
     blendedGrowth: best.allocation.blendedGrowthRate,
     blendedTotalReturn: best.allocation.blendedTotalReturnRate,
     projection: best.projection,
-    nextCentProjection: nextCentCheck?.projection ?? best.nextCentProjection
+    nextCentProjection
   };
 
   if (options.instrument) {

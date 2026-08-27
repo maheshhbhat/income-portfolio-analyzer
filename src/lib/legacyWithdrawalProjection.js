@@ -31,6 +31,16 @@ function roundToNearestCent(value) {
   return Math.round(value);
 }
 
+function roundRatioToCent(numerator, denominator) {
+  const numeratorBigInt = BigInt(numerator);
+  const denominatorBigInt = BigInt(denominator);
+  return Number((numeratorBigInt * 2n + denominatorBigInt) / (denominatorBigInt * 2n));
+}
+
+function applyRateToCents(cents, numerator, denominator) {
+  return roundRatioToCent(BigInt(cents) * BigInt(numerator), denominator);
+}
+
 function allocateCluster(cluster, totalCents) {
   if (cluster.length === 0 || totalCents <= 0) return [];
 
@@ -139,7 +149,19 @@ export function getClusterShape(securities, targetRate) {
 export function buildLegacyAllocation({ portfolioCents, withdrawalCents }, securities) {
   const targetRate = portfolioCents === 0 ? 0 : withdrawalCents / portfolioCents;
   const shape = getClusterShape(securities, targetRate);
-  const highTotalCents = roundToNearestCent(portfolioCents * shape.highWeight);
+  let highTotalCents = 0;
+  if (shape.highCluster.length > 0 && shape.lowCluster.length === 0) {
+    highTotalCents = portfolioCents;
+  } else if (shape.highCluster.length > 0 && shape.lowCluster.length > 0) {
+    const highTotalMilli = shape.highCluster.reduce((sum, security) => sum + security.totalReturnMilli, 0);
+    const lowTotalMilli = shape.lowCluster.reduce((sum, security) => sum + security.totalReturnMilli, 0);
+    const numerator =
+      (withdrawalCents * CANONICAL_RATE_SCALE * shape.lowCluster.length - portfolioCents * lowTotalMilli) *
+      shape.highCluster.length;
+    const denominator =
+      portfolioCents * (highTotalMilli * shape.lowCluster.length - lowTotalMilli * shape.highCluster.length);
+    highTotalCents = numerator <= 0 ? 0 : numerator >= denominator ? portfolioCents : roundRatioToCent(numerator, denominator);
+  }
   const lowTotalCents = portfolioCents - highTotalCents;
 
   const combined = [
@@ -172,7 +194,10 @@ export function buildLegacyAllocation({ portfolioCents, withdrawalCents }, secur
     })),
     blendedYieldRate: denominator === 0 ? 0 : blendedYieldNumerator / denominator,
     blendedGrowthRate: denominator === 0 ? 0 : blendedGrowthNumerator / denominator,
-    blendedTotalReturnRate: denominator === 0 ? 0 : (blendedYieldNumerator + blendedGrowthNumerator) / denominator
+    blendedTotalReturnRate: denominator === 0 ? 0 : (blendedYieldNumerator + blendedGrowthNumerator) / denominator,
+    blendedYieldNumerator,
+    blendedGrowthNumerator,
+    blendedRateDenominator: denominator
   };
 }
 
@@ -185,15 +210,15 @@ export function projectLegacyWithdrawal(input, allocation) {
     desiredEndingBalanceCents = 0
   } = input;
 
-  const yearlyInflationFactor = 1 + inflationRate;
+  const inflationMilli = canonicalizeRate(inflationRate);
   const years = [];
   let balanceCents = startingPortfolioCents;
   let withdrawalCents = firstYearWithdrawalCents;
   let depletionYear = null;
 
   for (let year = 1; year <= horizonYears; year++) {
-    const dividendIncomeCents = roundToNearestCent(balanceCents * allocation.blendedYieldRate);
-    const growthAmountCents = roundToNearestCent(balanceCents * allocation.blendedGrowthRate);
+    const dividendIncomeCents = applyRateToCents(balanceCents, allocation.blendedYieldNumerator, allocation.blendedRateDenominator);
+    const growthAmountCents = applyRateToCents(balanceCents, allocation.blendedGrowthNumerator, allocation.blendedRateDenominator);
     const grownBalanceCents = balanceCents + dividendIncomeCents + growthAmountCents;
 
     if (grownBalanceCents < withdrawalCents) {
@@ -230,7 +255,7 @@ export function projectLegacyWithdrawal(input, allocation) {
     });
 
     balanceCents = endingBalanceCents;
-    withdrawalCents = roundToNearestCent(withdrawalCents * yearlyInflationFactor);
+    withdrawalCents = applyRateToCents(withdrawalCents, CANONICAL_RATE_SCALE + inflationMilli, CANONICAL_RATE_SCALE);
   }
 
   return {
