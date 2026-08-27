@@ -45,8 +45,11 @@ function appDocument() {
 test('OE-DEGRADE-1: comparison browser flow clears and hides every stale summary and projection on invalid input', async () => {
   const savedDocument = globalThis.document;
   const savedFetch = globalThis.fetch;
+  const savedConsoleError = console.error;
+  const consoleErrors = [];
   globalThis.document = appDocument();
   globalThis.fetch = async () => { throw new Error('comparison flow must not fetch provider snapshots'); };
+  console.error = (...args) => { consoleErrors.push(args); };
 
   try {
     await import(`../app.js?comparison-display=${Date.now()}`);
@@ -58,12 +61,21 @@ test('OE-DEGRADE-1: comparison browser flow clears and hides every stale summary
     get('horizon-years').value = '30';
     get('inflation-rate').value = '3';
 
+    const startedAt = performance.now();
     get('comparison-submit').listeners.click();
+    const elapsedMs = performance.now() - startedAt;
 
     assert.equal(get('comparison-results').hidden, false);
     assert.equal(get('comparison-summary').children.length, 3, 'renders exactly three scenario summaries');
     assert.equal(get('comparison-projections').children.length, 3, 'renders exactly three scenario projections');
     assert.equal(get('comparison-error').hidden, true);
+    assert.ok(elapsedMs < 1000, `representative $1,000,000/30-year comparison rendered in ${elapsedMs.toFixed(2)}ms`);
+    for (const projection of get('comparison-projections').children) {
+      const table = projection.children[1];
+      const body = table.children[0];
+      assert.equal(body.children.length, 30, 'each rendered projection has one row per requested year');
+    }
+    assert.deepEqual(consoleErrors, [], 'the valid browser flow produces no page-console errors');
 
     get('investment-amount').value = '0';
     get('comparison-submit').listeners.click();
@@ -77,5 +89,6 @@ test('OE-DEGRADE-1: comparison browser flow clears and hides every stale summary
   } finally {
     globalThis.document = savedDocument;
     globalThis.fetch = savedFetch;
+    console.error = savedConsoleError;
   }
 });
