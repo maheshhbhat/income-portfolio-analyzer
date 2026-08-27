@@ -159,6 +159,14 @@ button[type="submit"]:hover {
   border-top: 1px solid var(--border);
 }
 
+.legacy-withdrawal,
+.maximum-withdrawal,
+.required-portfolio {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
 .comparison .section-title {
   margin-top: 0;
 }
