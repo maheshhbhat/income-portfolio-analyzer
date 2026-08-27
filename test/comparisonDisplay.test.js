@@ -78,8 +78,24 @@ test('OE-DEGRADE-1: comparison browser flow clears and hides every stale summary
     assert.deepEqual(consoleErrors, [], 'the valid browser flow produces no page-console errors');
 
     get('investment-amount').value = '0';
+    const comparisonError = get('comparison-error');
+    let errorWasShownAfterClear = false;
+    let comparisonErrorHidden = comparisonError.hidden;
+    Object.defineProperty(comparisonError, 'hidden', {
+      configurable: true,
+      get: () => comparisonErrorHidden,
+      set: (value) => {
+        if (value === false) {
+          errorWasShownAfterClear = get('comparison-results').hidden
+            && get('comparison-summary').children.length === 0
+            && get('comparison-projections').children.length === 0;
+        }
+        comparisonErrorHidden = value;
+      }
+    });
     get('comparison-submit').listeners.click();
 
+    assert.equal(errorWasShownAfterClear, true, 'the refusal is shown only after stale output is cleared and hidden');
     assert.equal(get('comparison-results').hidden, true, 'stale comparison results are hidden');
     assert.equal(get('comparison-summary').children.length, 0, 'stale comparison summaries are removed');
     assert.equal(get('comparison-projections').children.length, 0, 'stale comparison projections are removed');

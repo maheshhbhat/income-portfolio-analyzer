@@ -156,9 +156,11 @@ function clearComparisonOutputs() {
 
 function showComparisonError(message) {
   if (!comparisonError) return;
+  // Clear stale results before exposing the refusal so assistive technology
+  // and the visible page never present a prior plan alongside an error.
+  clearComparisonOutputs();
   comparisonError.textContent = message;
   comparisonError.hidden = false;
-  clearComparisonOutputs();
 }
 
 /**
