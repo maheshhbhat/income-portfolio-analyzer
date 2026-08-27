@@ -84,7 +84,10 @@
           required
         />
       </div>
-      <button type="submit">Get proposed allocation</button>
+      <div class="form__actions">
+        <button type="submit">Get proposed allocation</button>
+        <button type="button" id="comparison-submit" class="button-secondary">Compare 2%, 3%, and 4%</button>
+      </div>
     </form>
 
     <p id="form-error" class="error" role="alert" hidden></p>
@@ -144,6 +147,28 @@
         </thead>
         <tbody id="projection-body"></tbody>
       </table>
+    </section>
+
+    <section class="comparison" aria-labelledby="comparison-title">
+      <h2 id="comparison-title" class="section-title">Inflation comparison</h2>
+      <p class="page__subtitle">
+        Compare this same illustrative retirement plan at exactly 2%, 3%, and 4% annual inflation.
+        This comparison always uses this repository's curated SECURITIES set only, is illustrative,
+        is not a forecast, and is not financial advice.
+      </p>
+
+      <p id="comparison-error" class="error" role="alert" hidden></p>
+
+      <section id="comparison-results" class="results" hidden aria-live="polite">
+        <p class="comparison__disclosure">
+          Illustrative comparison only. These 2%, 3%, and 4% scenarios are deterministic examples from
+          this repository's curated SECURITIES set. They are not a forecast and not financial advice.
+        </p>
+
+        <div id="comparison-summary" class="comparison__summary"></div>
+
+        <div id="comparison-projections" class="comparison__projections"></div>
+      </section>
     </section>
 
     <section class="maximum-withdrawal" aria-labelledby="maximum-withdrawal-title">
