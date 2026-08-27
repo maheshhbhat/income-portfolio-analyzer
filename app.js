@@ -59,6 +59,27 @@ const TYPE_LABELS = {
 };
 const formatType = (type) => TYPE_LABELS[type] || type;
 
+function parseUsdInputToCents(value) {
+  const trimmed = `${value ?? ''}`.trim();
+  if (!trimmed) return NaN;
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(trimmed)) return NaN;
+
+  const [dollars, cents = ''] = trimmed.split('.');
+  const normalizedCents = `${cents}00`.slice(0, 2);
+  const amountCents = Number(dollars) * 100 + Number(normalizedCents);
+  return Number.isSafeInteger(amountCents) ? amountCents : NaN;
+}
+
+function formatUsdCents(cents) {
+  if (!Number.isSafeInteger(cents)) return '';
+  const negative = cents < 0;
+  const absoluteCents = Math.abs(cents);
+  const wholeDollars = Math.floor(absoluteCents / 100);
+  const centsPart = `${absoluteCents % 100}`.padStart(2, '0');
+  const groupedDollars = wholeDollars.toLocaleString('en-US');
+  return `${negative ? '-' : ''}$${groupedDollars}.${centsPart}`;
+}
+
 export function sourceCell(line, documentRef = document) {
   const cell = documentRef.createElement('td');
   const sourceUrl = line.facts?.name?.sourceUrl
@@ -546,7 +567,7 @@ const requiredAllocationBody = document.getElementById('required-allocation-body
 
 // Money is integer cents inside the computation; cents become dollars only
 // here, at the display edge.
-const centsToDisplay = (cents) => currency.format(cents / 100);
+const centsToDisplay = (cents) => formatUsdCents(cents);
 
 function hideRequiredOutputs() {
   requiredErrorEl.hidden = true;
@@ -730,18 +751,18 @@ function clearLegacyWithdrawalOutputs() {
   legacyWithdrawalRefusal.textContent = '';
   legacyWithdrawalResults.hidden = true;
   legacyWithdrawalBanner.hidden = true;
+  legacyWithdrawalValue.textContent = '—';
+  legacyEndingBalance.textContent = '—';
+  legacyCatalogReturn.textContent = '—';
   legacyAllocationBody.innerHTML = '';
   legacyProjectionBody.innerHTML = '';
 }
 
 function legacyWithdrawalInput() {
-  const portfolioDollars = Number.parseFloat(document.getElementById('legacy-portfolio').value);
+  const investmentAmountCents = parseUsdInputToCents(document.getElementById('legacy-portfolio').value);
   const horizonYears = Number.parseFloat(document.getElementById('legacy-horizon').value);
   const inflationRate = Number.parseFloat(document.getElementById('legacy-inflation').value) / 100;
-  const endingBalanceDollars = Number.parseFloat(document.getElementById('legacy-ending-balance-floor').value);
-
-  const investmentAmountCents = portfolioDollars * 100;
-  const endingBalanceFloorCents = endingBalanceDollars * 100;
+  const endingBalanceFloorCents = parseUsdInputToCents(document.getElementById('legacy-ending-balance-floor').value);
 
   if (!Number.isSafeInteger(investmentAmountCents) || !Number.isSafeInteger(endingBalanceFloorCents)) {
     return { error: 'Enter the starting portfolio and desired ending balance in whole cents.' };
@@ -773,7 +794,7 @@ function renderLegacyWithdrawal(result) {
   legacyProjectionBody.innerHTML = '';
   for (const year of result.projection.years) {
     const row = document.createElement('tr');
-    for (const value of [year.year, currency.format(year.startingBalanceCents / 100), currency.format(year.returnCents / 100), currency.format(year.withdrawalCents / 100), currency.format(year.endingBalanceCents / 100)]) {
+    for (const value of [year.year, formatUsdCents(year.startingBalanceCents), formatUsdCents(year.returnCents), formatUsdCents(year.withdrawalCents), formatUsdCents(year.endingBalanceCents)]) {
       const cell = document.createElement('td');
       cell.textContent = value;
       row.appendChild(cell);

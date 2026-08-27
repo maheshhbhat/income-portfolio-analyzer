@@ -48,7 +48,12 @@ function appDocument() {
   };
 }
 
-const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+function formatUsdCents(cents) {
+  const absoluteCents = Math.abs(cents);
+  const wholeDollars = Math.floor(absoluteCents / 100);
+  const centsPart = `${absoluteCents % 100}`.padStart(2, '0');
+  return `${cents < 0 ? '-' : ''}$${wholeDollars.toLocaleString('en-US')}.${centsPart}`;
+}
 
 test('legacy-withdrawal browser flow renders the verified catalog result and clears stale output before refusals', async () => {
   const expected = computeLegacyWithdrawal({
@@ -75,8 +80,8 @@ test('legacy-withdrawal browser flow renders the verified catalog result and cle
     assert.equal(get('legacy-withdrawal-results').hidden, false);
     assert.match(get('legacy-withdrawal-banner').textContent, /highest verified first-year annual withdrawal across the displayed fixed allocation catalog/i);
     assert.match(get('legacy-withdrawal-banner').textContent, /deterministic illustrative result is not financial advice/i);
-    assert.equal(get('legacy-withdrawal-value').textContent, currency.format(expected.maxAnnualWithdrawalCents / 100));
-    assert.equal(get('legacy-ending-balance').textContent, currency.format(expected.projection.endingBalanceCents / 100));
+    assert.equal(get('legacy-withdrawal-value').textContent, formatUsdCents(expected.maxAnnualWithdrawalCents));
+    assert.equal(get('legacy-ending-balance').textContent, formatUsdCents(expected.projection.endingBalanceCents));
     assert.equal(get('legacy-catalog-return').textContent, `${(expected.catalogEntry.totalReturn * 100).toFixed(2)}%`);
     assert.equal(get('legacy-allocation-body').children.length, expected.allocation.length, 'supporting allocation is rendered');
     assert.equal(get('legacy-projection-body').children.length, 30, 'full 30-row projection is rendered');
@@ -85,6 +90,8 @@ test('legacy-withdrawal browser flow renders the verified catalog result and cle
     get('legacy-withdrawal-form').listeners.submit({ preventDefault() {} });
 
     assert.equal(get('legacy-withdrawal-results').hidden, true, 'stale verified result is hidden on invalid input');
+    assert.equal(get('legacy-withdrawal-value').textContent, '—');
+    assert.equal(get('legacy-ending-balance').textContent, '—');
     assert.equal(get('legacy-allocation-body').innerHTML, '');
     assert.equal(get('legacy-projection-body').innerHTML, '');
     assert.match(get('legacy-withdrawal-error').textContent, /starting portfolio/i);
@@ -104,6 +111,8 @@ test('legacy-withdrawal browser flow renders the verified catalog result and cle
     get('legacy-withdrawal-form').listeners.submit({ preventDefault() {} });
 
     assert.equal(get('legacy-withdrawal-results').hidden, true, 'stale verified result is hidden on no-verified-result refusal');
+    assert.equal(get('legacy-withdrawal-value').textContent, '—');
+    assert.equal(get('legacy-ending-balance').textContent, '—');
     assert.equal(get('legacy-allocation-body').innerHTML, '');
     assert.equal(get('legacy-projection-body').innerHTML, '');
     assert.match(get('legacy-withdrawal-refusal').textContent, /no verified result could be calculated/i);
