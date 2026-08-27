@@ -163,6 +163,10 @@ button[type="submit"]:hover {
   margin-top: 0;
 }
 
+.comparison__actions {
+  margin-bottom: 1rem;
+}
+
 .comparison__disclosure {
   margin: 0 0 1rem;
   color: var(--muted);

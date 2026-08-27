@@ -1,4 +1,5 @@
 import { computeFixedInflationComparison, computeRetirementPlan } from './src/lib/retirement.js';
+import { computeRetirementScenarios } from './src/lib/retirementScenarios.js';
 import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
 import { computeMaxSustainableWithdrawal } from './src/lib/maxSustainableWithdrawal.js';
 import { SECURITIES } from './src/data/securities.js';
@@ -24,6 +25,14 @@ const comparisonError = document.getElementById('comparison-error');
 const comparisonResults = document.getElementById('comparison-results');
 const comparisonSummary = document.getElementById('comparison-summary');
 const comparisonProjections = document.getElementById('comparison-projections');
+const scenarioComparisonSubmit = document.getElementById('scenario-comparison-submit');
+const scenarioComparisonError = document.getElementById('scenario-comparison-error');
+const scenarioComparisonResults = document.getElementById('scenario-comparison-results');
+const scenarioComparisonSummary = document.getElementById('scenario-comparison-summary');
+const scenarioComparisonProjections = document.getElementById('scenario-comparison-projections');
+const scenarioDeterministicDisclosure = document.getElementById('scenario-deterministic-disclosure');
+const scenarioSimplificationDisclosure = document.getElementById('scenario-simplification-disclosure');
+const scenarioSequenceDisclosure = document.getElementById('scenario-sequence-disclosure');
 
 let activeProviderSnapshot = null;
 
@@ -163,6 +172,31 @@ function showComparisonError(message) {
   comparisonError.hidden = false;
 }
 
+function clearScenarioComparisonError() {
+  if (!scenarioComparisonError) return;
+  scenarioComparisonError.hidden = true;
+  scenarioComparisonError.textContent = '';
+}
+
+function clearScenarioComparisonOutputs() {
+  if (!scenarioComparisonResults) return;
+  scenarioComparisonResults.hidden = true;
+  scenarioComparisonSummary.replaceChildren?.();
+  scenarioComparisonProjections.replaceChildren?.();
+  scenarioComparisonSummary.innerHTML = '';
+  scenarioComparisonProjections.innerHTML = '';
+  if (scenarioDeterministicDisclosure) scenarioDeterministicDisclosure.textContent = '';
+  if (scenarioSimplificationDisclosure) scenarioSimplificationDisclosure.textContent = '';
+  if (scenarioSequenceDisclosure) scenarioSequenceDisclosure.textContent = '';
+}
+
+function showScenarioComparisonError(message) {
+  if (!scenarioComparisonError) return;
+  clearScenarioComparisonOutputs();
+  scenarioComparisonError.textContent = message;
+  scenarioComparisonError.hidden = false;
+}
+
 /**
  * Results are tied to the snapshot used for their calculation. A successful
  * provider refresh therefore makes both calculators stale until the user
@@ -179,6 +213,8 @@ function invalidateCalculatedResults() {
   requiredAllocationBody.innerHTML = '';
   clearComparisonError();
   clearComparisonOutputs();
+  clearScenarioComparisonError();
+  clearScenarioComparisonOutputs();
 }
 
 function render(result) {
@@ -362,6 +398,124 @@ async function runComparison() {
 
 comparisonSubmit?.addEventListener('click', () => {
   runComparison();
+});
+
+function scenarioOutcome(result) {
+  return result.lastsFullHorizon
+    ? `Lasts all ${result.years.length} years`
+    : `Depletes in year ${result.depletionYear}`;
+}
+
+function scenarioComparisonCard(result, label) {
+  const card = document.createElement('article');
+  card.className = 'comparison__card';
+
+  const heading = document.createElement('h3');
+  heading.textContent = label;
+  card.appendChild(heading);
+
+  const list = document.createElement('dl');
+  const entries = [
+    ['Outcome', scenarioOutcome(result)],
+    ['Ending balance', currency.format(result.endingBalance)],
+    ['Status', result.lastsFullHorizon ? 'Full horizon sustained' : 'Portfolio depleted']
+  ];
+
+  for (const [term, value] of entries) {
+    const dt = document.createElement('dt');
+    dt.textContent = term;
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    list.appendChild(dt);
+    list.appendChild(dd);
+  }
+
+  card.appendChild(list);
+  return card;
+}
+
+function scenarioComparisonProjection(result, label) {
+  const section = document.createElement('section');
+  section.className = 'comparison__projection';
+
+  const heading = document.createElement('h3');
+  heading.textContent = `${label} year-by-year table`;
+  section.appendChild(heading);
+
+  const table = document.createElement('table');
+  table.className = 'allocation-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Year</th>
+        <th>Starting balance</th>
+        <th>Dividend income</th>
+        <th>Growth</th>
+        <th>Withdrawal</th>
+        <th>Ending balance</th>
+      </tr>
+    </thead>
+  `;
+  const body = document.createElement('tbody');
+
+  for (const row of result.years) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${row.year}</td>
+      <td>${currency.format(row.startingBalance)}</td>
+      <td>${currency.format(row.dividendIncome)}</td>
+      <td>${currency.format(row.growthAmount)}</td>
+      <td>${currency.format(row.withdrawalPaid)}</td>
+      <td>${currency.format(row.endingBalance)}</td>
+    `;
+    body.appendChild(tr);
+  }
+
+  table.appendChild(body);
+  section.appendChild(table);
+  return section;
+}
+
+function renderScenarioComparison(comparison) {
+  clearScenarioComparisonError();
+  clearScenarioComparisonOutputs();
+
+  scenarioDeterministicDisclosure.textContent = comparison.disclosures.deterministicIllustration;
+  scenarioSimplificationDisclosure.textContent = comparison.disclosures.portfolioLevelSimplification;
+  scenarioSequenceDisclosure.textContent = comparison.disclosures.earlyDownturnSequence;
+
+  scenarioComparisonSummary.appendChild(scenarioComparisonCard(comparison.steady, 'Steady scenario'));
+  scenarioComparisonSummary.appendChild(scenarioComparisonCard(comparison.earlyDownturn, 'Early downturn scenario'));
+  scenarioComparisonProjections.appendChild(scenarioComparisonProjection(comparison.steady, 'Steady scenario'));
+  scenarioComparisonProjections.appendChild(scenarioComparisonProjection(comparison.earlyDownturn, 'Early downturn scenario'));
+
+  scenarioComparisonResults.hidden = false;
+}
+
+function runScenarioComparison() {
+  clearScenarioComparisonError();
+  clearScenarioComparisonOutputs();
+
+  const investmentAmount = Number.parseFloat(document.getElementById('investment-amount').value);
+  const desiredAnnualWithdrawal = Number.parseFloat(document.getElementById('desired-income').value);
+  const horizonYears = Number.parseFloat(document.getElementById('horizon-years').value);
+  const inflationRate = Number.parseFloat(document.getElementById('inflation-rate').value) / 100;
+
+  const comparison = computeRetirementScenarios(
+    { investmentAmount, desiredAnnualWithdrawal, horizonYears, inflationRate },
+    SECURITIES
+  );
+
+  if (!comparison.ok) {
+    showScenarioComparisonError(comparison.error);
+    return;
+  }
+
+  renderScenarioComparison(comparison);
+}
+
+scenarioComparisonSubmit?.addEventListener('click', () => {
+  runScenarioComparison();
 });
 
 // --- Required starting portfolio section ---
