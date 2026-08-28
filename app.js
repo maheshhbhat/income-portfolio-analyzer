@@ -779,7 +779,8 @@ function legacyWithdrawalInput() {
 function renderLegacyWithdrawal(result) {
   legacyWithdrawalBanner.textContent =
     `${centsToDisplay(result.maxAnnualWithdrawalCents)} is the highest verified first-year annual withdrawal across the displayed fixed allocation catalog. ` +
-    `This deterministic illustrative result is not financial advice, and no higher shown-catalog withdrawal verified this ending-balance floor.`;
+    `For the displayed winning allocation, increasing that withdrawal by $0.01 fails the requested ending-balance floor. ` +
+    `This deterministic illustrative result is not financial advice.`;
   legacyWithdrawalBanner.hidden = false;
   legacyWithdrawalValue.textContent = centsToDisplay(result.maxAnnualWithdrawalCents);
   legacyEndingBalance.textContent = centsToDisplay(result.projection.endingBalanceCents);
