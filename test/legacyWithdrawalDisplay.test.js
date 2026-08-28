@@ -80,6 +80,8 @@ test('OE-SCALE-1: representative browser flow renders the verified catalog resul
 
     assert.equal(get('legacy-withdrawal-results').hidden, false);
     assert.match(get('legacy-withdrawal-banner').textContent, /highest verified first-year annual withdrawal across the displayed fixed allocation catalog/i);
+    assert.match(get('legacy-withdrawal-banner').textContent, /displayed winning allocation/i);
+    assert.match(get('legacy-withdrawal-banner').textContent, /increasing that withdrawal by \$0\.01 fails the requested ending-balance floor/i);
     assert.match(get('legacy-withdrawal-banner').textContent, /deterministic illustrative result is not financial advice/i);
     assert.equal(get('legacy-withdrawal-value').textContent, formatUsdCents(expected.maxAnnualWithdrawalCents));
     assert.equal(get('legacy-ending-balance').textContent, formatUsdCents(expected.projection.endingBalanceCents));

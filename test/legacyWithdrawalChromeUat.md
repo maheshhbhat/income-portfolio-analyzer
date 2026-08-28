@@ -17,12 +17,15 @@ a provider or use Refresh Data.
 3. Verify one dollar withdrawal, a supporting allocation table, and exactly
    30 projection rows. Verify the final projected balance is at least
    `$100,000` and the result banner says it is the highest verified first-year
-   annual withdrawal across the displayed fixed allocation catalog. This is
-   the required catalog-limit disclosure.
+   annual withdrawal across the displayed fixed allocation catalog. Verify the
+   same banner also states that, for the displayed winning allocation,
+   increasing the displayed withdrawal by `$0.01` fails the requested
+   ending-balance floor. These are the required catalog-limit and next-cent
+   disclosures.
 4. Repeat with `$1,000,000`, `30` years, `3` percent inflation, and `$100,000`
    desired ending balance. Time the click through visible result render in the
    Chrome Performance panel. Record a pass only below 1,000 ms. Confirm the
-   page states that `$0.01` more fails for the displayed winning allocation.
+   same explicit winning-allocation next-cent statement is present on the page.
 5. Enter a negative desired ending balance or a zero starting portfolio and
    submit. Confirm the preceding withdrawal, allocation, and all projection
    rows disappear before the actionable refusal is visible. Record any
@@ -40,8 +43,8 @@ not claim that an automated harness is owner UAT.
 | Local URL | |
 | Exact application head (`git rev-parse HEAD`) | |
 | Catalog-limit disclosure observed | |
+| Winning-allocation next-cent disclosure observed | |
 | $500,000 result / allocation / 30 rows / final floor | |
 | $1,000,000 click-to-render milliseconds | |
-| Winning-allocation next-cent statement | |
 | Stale-output clearing observation | |
 | Page-console errors | |

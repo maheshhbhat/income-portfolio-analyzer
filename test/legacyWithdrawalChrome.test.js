@@ -60,6 +60,8 @@ test('OE-RESP-1: Chrome-style $1,000,000 click-to-render flow completes below on
     assert.ok(elapsedMilliseconds < 1_000, `click-to-render took ${elapsedMilliseconds.toFixed(2)} ms`);
     assert.equal(get('legacy-withdrawal-results').hidden, false);
     assert.match(get('legacy-withdrawal-banner').textContent, /highest verified first-year annual withdrawal across the displayed fixed allocation catalog/i);
+    assert.match(get('legacy-withdrawal-banner').textContent, /displayed winning allocation/i);
+    assert.match(get('legacy-withdrawal-banner').textContent, /increasing that withdrawal by \$0\.01 fails the requested ending-balance floor/i);
     assert.equal(get('legacy-withdrawal-value').textContent, formatUsdCents(expected.maxAnnualWithdrawalCents));
     assert.ok(get('legacy-catalog-return').textContent.endsWith('%'));
     assert.ok(get('legacy-allocation-body').children.length > 0, 'supporting allocation is rendered');
