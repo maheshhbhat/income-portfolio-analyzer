@@ -45,14 +45,14 @@ test('computeSpendingGuardrail returns safe-integer money fields for representat
       horizonYears: 30,
       inflationRate: 0.03,
       safetyFloorCents: 20000000,
-      withdrawalReductionRate: 0.1
+      postTriggerReductionPercent: 10
     },
     SECURITIES
   );
 
   assert.equal(result.ok, true);
   assert.equal(result.inflationRatePpm, 30000);
-  assert.equal(result.withdrawalReductionRatePpm, 100000);
+  assert.equal(result.postTriggerReductionRatePpm, 100000);
 
   for (const item of result.allocation.items) {
     assert.ok(Number.isSafeInteger(item.amountCents));
@@ -84,7 +84,7 @@ test('unreachable allocation preserves best-achievable metadata for the UI', () 
       horizonYears: 5,
       inflationRate: 0,
       safetyFloorCents: 0,
-      withdrawalReductionRate: 0
+      postTriggerReductionPercent: 0
     },
     SECURITIES
   );
@@ -95,7 +95,7 @@ test('unreachable allocation preserves best-achievable metadata for the UI', () 
   assert.ok(result.allocation.items.length >= 1);
 });
 
-test('post-trigger reduction covers 0%, 100%, and half-cent tie rounding with BigInt half-up arithmetic', () => {
+test('post-trigger reduction percent covers 0%, 100%, and half-cent tie rounding with BigInt half-up arithmetic', () => {
   const securities = zeroReturnSecurities();
 
   const none = computeSpendingGuardrail(
@@ -105,7 +105,7 @@ test('post-trigger reduction covers 0%, 100%, and half-cent tie rounding with Bi
       horizonYears: 1,
       inflationRate: 0,
       safetyFloorCents: 10,
-      withdrawalReductionRate: 0
+      postTriggerReductionPercent: 0
     },
     securities
   );
@@ -121,7 +121,7 @@ test('post-trigger reduction covers 0%, 100%, and half-cent tie rounding with Bi
       horizonYears: 1,
       inflationRate: 0,
       safetyFloorCents: 10,
-      withdrawalReductionRate: 1
+      postTriggerReductionPercent: 100
     },
     securities
   );
@@ -136,13 +136,13 @@ test('post-trigger reduction covers 0%, 100%, and half-cent tie rounding with Bi
       horizonYears: 1,
       inflationRate: 0,
       safetyFloorCents: 10,
-      withdrawalReductionRate: 0.5
+      postTriggerReductionPercent: 50
     },
     securities
   );
   assert.equal(halfTie.ok, true);
   assert.equal(halfTie.guardrail.rows[0].withdrawalRequestedCents, 1);
-  assert.equal(halfTie.withdrawalReductionRatePpm, SPENDING_GUARDRAIL_RATE_SCALE / 2);
+  assert.equal(halfTie.postTriggerReductionRatePpm, SPENDING_GUARDRAIL_RATE_SCALE / 2);
 });
 
 test('depletion keeps the depletion row, emits post-depletion zero rows, and can first trigger on year N+1', () => {
@@ -153,7 +153,7 @@ test('depletion keeps the depletion row, emits post-depletion zero rows, and can
       horizonYears: 4,
       inflationRate: 0,
       safetyFloorCents: 0,
-      withdrawalReductionRate: 0
+      postTriggerReductionPercent: 0
     },
     zeroReturnSecurities()
   );
@@ -182,7 +182,7 @@ test('final-horizon depletion without an earlier trigger reports floor not reach
       horizonYears: 2,
       inflationRate: 0,
       safetyFloorCents: 0,
-      withdrawalReductionRate: 0
+      postTriggerReductionPercent: 0
     },
     zeroReturnSecurities()
   );
@@ -201,7 +201,7 @@ test('two separate valid calls serialize identically', () => {
     horizonYears: 20,
     inflationRate: 0.03,
     safetyFloorCents: 10000000,
-    withdrawalReductionRate: 0.2
+    postTriggerReductionPercent: 20
   };
 
   const first = computeSpendingGuardrail(input, SECURITIES);
@@ -220,7 +220,7 @@ test('off-scale inflation and curated rates are refused without leaking any mone
       horizonYears: 5,
       inflationRate: 0.0000001,
       safetyFloorCents: 0,
-      withdrawalReductionRate: 0
+      postTriggerReductionPercent: 0
     },
     zeroReturnSecurities()
   );
@@ -238,7 +238,7 @@ test('off-scale inflation and curated rates are refused without leaking any mone
       horizonYears: 5,
       inflationRate: 0,
       safetyFloorCents: 0,
-      withdrawalReductionRate: 0
+      postTriggerReductionPercent: 0
     },
     [
       { symbol: 'AAA', name: 'Alpha', type: 'etf', yield: 0.0000001, growthRate: 0 },
@@ -261,7 +261,7 @@ test('unsafe monetary intermediates are refused without allocation rows, yearly 
       horizonYears: 2,
       inflationRate: 0,
       safetyFloorCents: 0,
-      withdrawalReductionRate: 0
+      postTriggerReductionPercent: 0
     },
     [
       { symbol: 'AAA', name: 'Alpha', type: 'etf', yield: 1, growthRate: 1 },
@@ -326,7 +326,7 @@ test('instrumentation proves work stays within a horizon-and-security-derived bo
         horizonYears: 30,
         inflationRate: 0.03,
         safetyFloorCents: 100000,
-        withdrawalReductionRate: 0.1
+        postTriggerReductionPercent: 10
       },
       securities,
       {

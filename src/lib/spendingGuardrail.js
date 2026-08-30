@@ -170,6 +170,18 @@ function applyReduction(withdrawalCents, reductionRatePpm) {
   return multiplyScaledInteger(withdrawalCents, retainedRatePpm, 'reduced withdrawal cents');
 }
 
+function parsePostTriggerReductionPercent(percent) {
+  const scaledPercent = parseScaledDecimal(percent, 'post-trigger reduction percent');
+  const maximumScaledPercent = RATE_SCALE * 100;
+  if (scaledPercent > maximumScaledPercent) {
+    throw new RangeError('post-trigger reduction percent must be between 0 and 100 inclusive.');
+  }
+  if (scaledPercent % 100 !== 0) {
+    throw new RangeError('post-trigger reduction percent must produce an exact 0.000001 rate.');
+  }
+  return scaledPercent / 100;
+}
+
 function buildSimulation({
   investmentAmountCents,
   desiredAnnualWithdrawalCents,
@@ -306,7 +318,7 @@ export function computeSpendingGuardrail(input, securities, options = {}) {
       horizonYears,
       inflationRate,
       safetyFloorCents,
-      withdrawalReductionRate = 0
+      postTriggerReductionPercent = 0
     } = input || {};
 
     validatePositiveSafeInteger(investmentAmountCents, 'investmentAmountCents');
@@ -317,10 +329,7 @@ export function computeSpendingGuardrail(input, securities, options = {}) {
     validateNonNegativeSafeInteger(safetyFloorCents, 'safetyFloorCents');
 
     const inflationRatePpm = parseScaledDecimal(inflationRate, 'inflation rate');
-    const reductionRatePpm = parseScaledDecimal(withdrawalReductionRate, 'withdrawal reduction rate');
-    if (reductionRatePpm > RATE_SCALE) {
-      throw new RangeError('withdrawal reduction rate must be between 0 and 1 inclusive.');
-    }
+    const reductionRatePpm = parsePostTriggerReductionPercent(postTriggerReductionPercent);
 
     const instrumentation = options.instrumentation;
     const canonicalSecurities = canonicalizeSecurities(securities, instrumentation);
@@ -373,7 +382,8 @@ export function computeSpendingGuardrail(input, securities, options = {}) {
       horizonYears,
       safetyFloorCents,
       inflationRatePpm,
-      withdrawalReductionRatePpm: reductionRatePpm,
+      postTriggerReductionPercent,
+      postTriggerReductionRatePpm: reductionRatePpm,
       allocation,
       blendedRates,
       steady,
