@@ -21,6 +21,12 @@ function average(values) {
   return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
+function validatePositiveSafeInteger(value, label) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new TypeError(`${label} must be a positive safe integer.`);
+  }
+}
+
 function allocateCluster(cluster, totalCents) {
   if (cluster.length === 0) return [];
   const n = cluster.length;
@@ -32,20 +38,7 @@ function allocateCluster(cluster, totalCents) {
   }));
 }
 
-/**
- * Metric-agnostic bracket-and-blend core shared by the income allocation and
- * the total-return-based retirement allocation.
- *
- * @param {Array<object>} securities curated list
- * @param {number} targetRate the rate (as a decimal) to hit with the blend
- * @param {(security: object) => number} metricOf extracts the metric to bracket on
- * @returns {{
- *   items: Array<{security: object, amount: number, percentOfPortfolio: number}>,
- *   unreachable: boolean,
- *   bestAchievableMetric: number
- * }}
- */
-export function bracketAndBlend(investmentAmount, securities, targetRate, metricOf) {
+function resolveBracketAndBlend(securities, targetRate, metricOf) {
   const clusterSize = Math.max(1, Math.min(5, Math.floor(securities.length / 2)));
 
   const ascByMetric = securities.slice().sort((a, b) => metricOf(a) - metricOf(b));
@@ -54,9 +47,7 @@ export function bracketAndBlend(investmentAmount, securities, targetRate, metric
   const nearAbove = ascByMetric.filter((s) => metricOf(s) >= targetRate).slice(0, clusterSize);
   const nearBelow = descByMetric.filter((s) => metricOf(s) < targetRate).slice(0, clusterSize);
 
-  // Dataset-level ceiling used only for messaging when the target is out of reach.
   const bestAchievableMetric = average(descByMetric.slice(0, clusterSize).map(metricOf));
-
   const unreachable = nearAbove.length === 0;
 
   let highCluster;
@@ -77,6 +68,62 @@ export function bracketAndBlend(investmentAmount, securities, targetRate, metric
     const lowAvg = average(lowCluster.map(metricOf));
     w = highAvg === lowAvg ? 1 : clamp((targetRate - lowAvg) / (highAvg - lowAvg), 0, 1);
   }
+
+  return {
+    highCluster,
+    lowCluster,
+    w,
+    unreachable,
+    bestAchievableMetric
+  };
+}
+
+export function bracketAndBlendCents(investmentAmountCents, securities, targetRate, metricOf) {
+  validatePositiveSafeInteger(investmentAmountCents, 'investmentAmountCents');
+
+  const { highCluster, lowCluster, w, unreachable, bestAchievableMetric } = resolveBracketAndBlend(
+    securities,
+    targetRate,
+    metricOf
+  );
+
+  const highTotalCents = Math.round(investmentAmountCents * w);
+  const lowTotalCents = investmentAmountCents - highTotalCents;
+
+  const items = [
+    ...allocateCluster(highCluster, highTotalCents),
+    ...allocateCluster(lowCluster, lowTotalCents)
+  ]
+    .filter((a) => a.cents > 0)
+    .map((a) => ({
+      security: a.security,
+      amountCents: a.cents,
+      percentOfPortfolio: a.cents / investmentAmountCents
+    }))
+    .sort((a, b) => b.amountCents - a.amountCents);
+
+  return { items, unreachable, bestAchievableMetric };
+}
+
+/**
+ * Metric-agnostic bracket-and-blend core shared by the income allocation and
+ * the total-return-based retirement allocation.
+ *
+ * @param {Array<object>} securities curated list
+ * @param {number} targetRate the rate (as a decimal) to hit with the blend
+ * @param {(security: object) => number} metricOf extracts the metric to bracket on
+ * @returns {{
+ *   items: Array<{security: object, amount: number, percentOfPortfolio: number}>,
+ *   unreachable: boolean,
+ *   bestAchievableMetric: number
+ * }}
+ */
+export function bracketAndBlend(investmentAmount, securities, targetRate, metricOf) {
+  const { highCluster, lowCluster, w, unreachable, bestAchievableMetric } = resolveBracketAndBlend(
+    securities,
+    targetRate,
+    metricOf
+  );
 
   const investmentCents = Math.round(investmentAmount * 100);
   const highTotalCents = Math.round(investmentCents * w);
