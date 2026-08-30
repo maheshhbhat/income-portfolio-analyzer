@@ -158,6 +158,16 @@ test('money and inflation parsing retain cents and refuse unsupported precision'
     assert.equal(get('spending-guardrail-results').hidden, false);
     assert.match(get('spending-guardrail-steady-body').children[0].children[1].textContent, /\$0\.29/);
 
+    get('spending-guardrail-portfolio').value = '0.291';
+    submit(get);
+    assert.equal(get('spending-guardrail-results').hidden, true);
+    assert.equal(get('spending-guardrail-summary').children.length, 0);
+    assert.equal(get('spending-guardrail-steady-body').children.length, 0);
+    assert.equal(get('spending-guardrail-guardrail-body').children.length, 0);
+    assert.equal(get('spending-guardrail-trigger').textContent, '');
+    assert.match(get('spending-guardrail-error').textContent, /at most two decimal places/i);
+
+    fillRepresentative(get);
     get('spending-guardrail-inflation').value = '3.00001';
     submit(get);
     assert.match(get('spending-guardrail-error').textContent, /supported 0\.000001 rate scale/i);

@@ -71,9 +71,12 @@ const formatType = (type) => TYPE_LABELS[type] || type;
 function parseUsdInputToCents(value) {
   const trimmed = `${value ?? ''}`.trim();
   if (!trimmed) return NaN;
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(trimmed)) return NaN;
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(trimmed)) return NaN;
 
   const [dollars, cents = ''] = trimmed.split('.');
+  // Reject sub-cent input before padding the fraction. Padding is only for
+  // accepted whole-dollar and one-decimal-place values.
+  if (cents.length > 2) return NaN;
   const normalizedCents = `${cents}00`.slice(0, 2);
   const centsText = `${dollars}${normalizedCents}`.replace(/^0+(?=\d)/, '');
   const amountCents = Number(centsText || '0');
