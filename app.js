@@ -51,6 +51,8 @@ const spendingGuardrailResults = document.getElementById('spending-guardrail-res
 const spendingGuardrailUnreachable = document.getElementById('spending-guardrail-unreachable');
 const spendingGuardrailTrigger = document.getElementById('spending-guardrail-trigger');
 const spendingGuardrailSummary = document.getElementById('spending-guardrail-summary');
+const spendingGuardrailAllocation = document.getElementById('spending-guardrail-allocation');
+const spendingGuardrailAllocationBody = document.getElementById('spending-guardrail-allocation-body');
 const spendingGuardrailSteadyBody = document.getElementById('spending-guardrail-steady-body');
 const spendingGuardrailGuardrailBody = document.getElementById('spending-guardrail-guardrail-body');
 
@@ -598,6 +600,8 @@ function clearSpendingGuardrailOutputs() {
   spendingGuardrailTrigger.hidden = true;
   spendingGuardrailTrigger.textContent = '';
   spendingGuardrailSummary.replaceChildren();
+  spendingGuardrailAllocation.hidden = true;
+  spendingGuardrailAllocationBody.replaceChildren();
   spendingGuardrailSteadyBody.replaceChildren();
   spendingGuardrailGuardrailBody.replaceChildren();
 }
@@ -650,6 +654,22 @@ function appendSpendingGuardrailRows(body, rows) {
   }
 }
 
+function appendSpendingGuardrailAllocation(items) {
+  for (const item of items) {
+    const tr = document.createElement('tr');
+    for (const value of [
+      item.security.symbol,
+      formatUsdCents(item.amountCents),
+      percent(item.percentOfPortfolio)
+    ]) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+    spendingGuardrailAllocationBody.appendChild(tr);
+  }
+}
+
 function renderSpendingGuardrail(result) {
   clearSpendingGuardrailError();
   clearSpendingGuardrailOutputs();
@@ -657,6 +677,8 @@ function renderSpendingGuardrail(result) {
     spendingGuardrailCard('Steady plan', result.steady),
     spendingGuardrailCard('Spending guardrail plan', result.guardrail)
   );
+  appendSpendingGuardrailAllocation(result.allocation.items);
+  spendingGuardrailAllocation.hidden = false;
   appendSpendingGuardrailRows(spendingGuardrailSteadyBody, result.steady.rows);
   appendSpendingGuardrailRows(spendingGuardrailGuardrailBody, result.guardrail.rows);
 

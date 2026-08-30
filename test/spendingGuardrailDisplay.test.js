@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { computeSpendingGuardrail } from '../src/lib/spendingGuardrail.js';
+import { SECURITIES } from '../src/data/securities.js';
 
 class MockElement {
   constructor(tagName = 'div', { hidden = false, value = '' } = {}) {
@@ -100,6 +102,39 @@ test('OE-PROVIDER-2: guardrail compare-and-render implementation is isolated fro
   assert.match(flow, /computeSpendingGuardrail\([\s\S]*SECURITIES/);
 });
 
+test('an unreachable request visibly renders the shared best-achievable allocation from the core result', async () => {
+  const input = {
+    investmentAmountCents: 100000000,
+    desiredAnnualWithdrawalCents: 20000000,
+    horizonYears: 30,
+    inflationRate: 0.03,
+    safetyFloorCents: 0,
+    postTriggerReductionPercent: 10
+  };
+  const expected = computeSpendingGuardrail(input, SECURITIES);
+  assert.equal(expected.ok, true);
+  assert.equal(expected.allocation.unreachable, true);
+
+  await withApp(async (get) => {
+    get('spending-guardrail-portfolio').value = '1000000';
+    get('spending-guardrail-withdrawal').value = '200000';
+    get('spending-guardrail-horizon').value = '30';
+    get('spending-guardrail-inflation').value = '3';
+    get('spending-guardrail-floor').value = '0';
+    get('spending-guardrail-reduction').value = '10';
+    submit(get);
+
+    assert.equal(get('spending-guardrail-unreachable').hidden, false);
+    assert.equal(get('spending-guardrail-allocation').hidden, false);
+    assert.equal(get('spending-guardrail-allocation-body').children.length, expected.allocation.items.length);
+    for (const [index, item] of expected.allocation.items.entries()) {
+      const row = get('spending-guardrail-allocation-body').children[index];
+      assert.equal(row.children[0].textContent, item.security.symbol);
+      assert.equal(row.children[1].textContent, `$${(item.amountCents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    }
+  });
+});
+
 test('OE-DEGRADE-1: invalid input clears all prior guardrail comparison output before refusal', async () => {
   await withApp(async (get) => {
     fillRepresentative(get);
@@ -116,6 +151,7 @@ test('OE-DEGRADE-1: invalid input clears all prior guardrail comparison output b
         if (value === false) {
           errorShownAfterClear = get('spending-guardrail-results').hidden
             && get('spending-guardrail-summary').children.length === 0
+            && get('spending-guardrail-allocation-body').children.length === 0
             && get('spending-guardrail-steady-body').children.length === 0
             && get('spending-guardrail-guardrail-body').children.length === 0
             && get('spending-guardrail-trigger').textContent === '';
@@ -141,6 +177,7 @@ test('OE-DEGRADE-3: a safe-arithmetic refusal clears prior comparison money outp
 
     assert.equal(get('spending-guardrail-results').hidden, true);
     assert.equal(get('spending-guardrail-summary').children.length, 0);
+    assert.equal(get('spending-guardrail-allocation-body').children.length, 0);
     assert.equal(get('spending-guardrail-steady-body').children.length, 0);
     assert.equal(get('spending-guardrail-guardrail-body').children.length, 0);
     assert.equal(get('spending-guardrail-trigger').textContent, '');
@@ -162,6 +199,7 @@ test('money and inflation parsing retain cents and refuse unsupported precision'
     submit(get);
     assert.equal(get('spending-guardrail-results').hidden, true);
     assert.equal(get('spending-guardrail-summary').children.length, 0);
+    assert.equal(get('spending-guardrail-allocation-body').children.length, 0);
     assert.equal(get('spending-guardrail-steady-body').children.length, 0);
     assert.equal(get('spending-guardrail-guardrail-body').children.length, 0);
     assert.equal(get('spending-guardrail-trigger').textContent, '');
