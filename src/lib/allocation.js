@@ -27,6 +27,57 @@ function validatePositiveSafeInteger(value, label) {
   }
 }
 
+const RATE_SCALE = 1000000;
+
+function parseScaledDecimal(rate, label) {
+  if (typeof rate !== 'number' || !Number.isFinite(rate) || rate < 0) {
+    throw new TypeError(`${label} must be a finite non-negative number.`);
+  }
+
+  const rendered = rate.toString().toLowerCase();
+  const [coefficient, exponentText] = rendered.split('e');
+  const exponent = exponentText === undefined ? 0 : Number(exponentText);
+  const [whole = '0', fraction = ''] = coefficient.split('.');
+  if (!Number.isInteger(exponent) || !/^\d+$/.test(whole) || !/^\d*$/.test(fraction)) {
+    throw new TypeError(`${label} must use a deterministic decimal representation.`);
+  }
+
+  let digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, '') || '0';
+  let decimalPlaces = fraction.length - exponent;
+  if (decimalPlaces < 0) {
+    digits += '0'.repeat(-decimalPlaces);
+    decimalPlaces = 0;
+  }
+  if (decimalPlaces > 6) {
+    const extraPlaces = decimalPlaces - 6;
+    if (/[1-9]/.test(digits.slice(-extraPlaces))) {
+      throw new RangeError(`${label} must be an exact multiple of 0.000001.`);
+    }
+    digits = digits.slice(0, -extraPlaces) || '0';
+    decimalPlaces = 6;
+  }
+
+  const scaled = Number(digits + '0'.repeat(6 - decimalPlaces));
+  if (!Number.isSafeInteger(scaled)) {
+    throw new RangeError(`${label} exceeds the supported scale range.`);
+  }
+  return scaled;
+}
+
+function roundRatio(numerator, denominator) {
+  const quotient = numerator / denominator;
+  const remainder = numerator % denominator;
+  return remainder * 2n >= denominator ? quotient + 1n : quotient;
+}
+
+function toSafeInteger(value, label) {
+  const number = Number(value);
+  if (!Number.isSafeInteger(number)) {
+    throw new RangeError(`${label} exceeds the safe integer range.`);
+  }
+  return number;
+}
+
 function allocateCluster(cluster, totalCents) {
   if (cluster.length === 0) return [];
   const n = cluster.length;
@@ -78,21 +129,69 @@ function resolveBracketAndBlend(securities, targetRate, metricOf) {
   };
 }
 
-export function bracketAndBlendCents(investmentAmountCents, securities, targetRate, metricOf) {
+export function bracketAndBlendCents(investmentAmountCents, securities, targetRate, metricOf, options = {}) {
   validatePositiveSafeInteger(investmentAmountCents, 'investmentAmountCents');
 
-  const { highCluster, lowCluster, w, unreachable, bestAchievableMetric } = resolveBracketAndBlend(
-    securities,
-    targetRate,
-    metricOf
-  );
+  if (!Array.isArray(securities) || securities.length < 2) {
+    throw new TypeError('securities must contain at least two entries.');
+  }
+  if (typeof metricOf !== 'function') {
+    throw new TypeError('metricOf must be a function.');
+  }
 
-  const highTotalCents = Math.round(investmentAmountCents * w);
+  const targetRatePpm = options.targetRatePpm === undefined
+    ? parseScaledDecimal(targetRate, 'targetRate')
+    : options.targetRatePpm;
+  if (!Number.isSafeInteger(targetRatePpm) || targetRatePpm < 0) {
+    throw new TypeError('targetRatePpm must be a non-negative safe integer.');
+  }
+  const metricRatePpmOf = options.metricRatePpmOf;
+  const metrics = new Map(securities.map((security) => [
+    security,
+    metricRatePpmOf === undefined
+      ? parseScaledDecimal(metricOf(security), 'security metric')
+      : metricRatePpmOf(security)
+  ]));
+  for (const metric of metrics.values()) {
+    if (!Number.isSafeInteger(metric) || metric < 0) {
+      throw new TypeError('security metric ppm must be a non-negative safe integer.');
+    }
+  }
+  const clusterSize = Math.max(1, Math.min(5, Math.floor(securities.length / 2)));
+  const ascByMetric = securities.slice().sort((a, b) => metrics.get(a) - metrics.get(b));
+  const descByMetric = securities.slice().sort((a, b) => metrics.get(b) - metrics.get(a));
+  const highCluster = ascByMetric.filter((security) => metrics.get(security) >= targetRatePpm).slice(0, clusterSize);
+  const lowCluster = descByMetric.filter((security) => metrics.get(security) < targetRatePpm).slice(0, clusterSize);
+  const unreachable = highCluster.length === 0;
+  const bestAchievableMetric = descByMetric.slice(0, clusterSize)
+    .reduce((sum, security) => sum + metrics.get(security), 0) / clusterSize / RATE_SCALE;
+
+  let selectedHighCluster = highCluster;
+  let selectedLowCluster = lowCluster;
+  let highTotalCents = 0;
+  if (unreachable) {
+    selectedHighCluster = [];
+  } else if (lowCluster.length === 0) {
+    selectedLowCluster = [];
+    highTotalCents = investmentAmountCents;
+  } else {
+    const highSum = highCluster.reduce((sum, security) => sum + BigInt(metrics.get(security)), 0n);
+    const lowSum = lowCluster.reduce((sum, security) => sum + BigInt(metrics.get(security)), 0n);
+    const highCount = BigInt(highCluster.length);
+    const lowCount = BigInt(lowCluster.length);
+    const numerator = (BigInt(targetRatePpm) * lowCount - lowSum) * highCount;
+    const denominator = highSum * lowCount - lowSum * highCount;
+    const boundedNumerator = numerator < 0n ? 0n : numerator > denominator ? denominator : numerator;
+    highTotalCents = toSafeInteger(
+      roundRatio(BigInt(investmentAmountCents) * boundedNumerator, denominator),
+      'high allocation cents'
+    );
+  }
   const lowTotalCents = investmentAmountCents - highTotalCents;
 
   const items = [
-    ...allocateCluster(highCluster, highTotalCents),
-    ...allocateCluster(lowCluster, lowTotalCents)
+    ...allocateCluster(selectedHighCluster, highTotalCents),
+    ...allocateCluster(selectedLowCluster, lowTotalCents)
   ]
     .filter((a) => a.cents > 0)
     .map((a) => ({

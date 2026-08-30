@@ -37,6 +37,24 @@ test('bracketAndBlendCents returns positive safe-integer cents with the original
   }
 });
 
+test('bracketAndBlendCents uses exact ppm BigInt arithmetic at the safe-integer boundary', () => {
+  const securities = [
+    { symbol: 'LOW', name: 'Low', type: 'etf', yield: 0, growthRate: 0 },
+    { symbol: 'HIGH', name: 'High', type: 'etf', yield: 0.3, growthRate: 0 }
+  ];
+
+  const result = bracketAndBlendCents(
+    Number.MAX_SAFE_INTEGER,
+    securities,
+    0.1,
+    (security) => security.yield + security.growthRate
+  );
+
+  const high = result.items.find((item) => item.security === securities[1]);
+  assert.equal(high.amountCents, 3002399751580330);
+  assert.equal(result.items.reduce((sum, item) => sum + item.amountCents, 0), Number.MAX_SAFE_INTEGER);
+});
+
 test('computeSpendingGuardrail returns safe-integer money fields for representative valid input', () => {
   const result = computeSpendingGuardrail(
     {

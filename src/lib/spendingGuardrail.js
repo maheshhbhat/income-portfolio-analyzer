@@ -335,12 +335,26 @@ export function computeSpendingGuardrail(input, securities, options = {}) {
     const canonicalSecurities = canonicalizeSecurities(securities, instrumentation);
     instrumentation?.onAllocation?.({ securitiesCount: canonicalSecurities.length });
 
-    const targetRate = investmentAmountCents === 0 ? 0 : desiredAnnualWithdrawalCents / investmentAmountCents;
+    const targetRatePpm = bigIntToSafeInteger(
+      roundRatio(
+        toBigInt(desiredAnnualWithdrawalCents, 'desiredAnnualWithdrawalCents') * SCALE_BIGINT,
+        toBigInt(investmentAmountCents, 'investmentAmountCents')
+      ),
+      'target rate'
+    );
+    const canonicalBySecurity = new Map(canonicalSecurities.map((entry) => [entry.security, entry]));
     const allocation = bracketAndBlendCents(
       investmentAmountCents,
       canonicalSecurities.map((entry) => entry.security),
-      targetRate,
-      (security) => security.yield + security.growthRate
+      targetRatePpm / RATE_SCALE,
+      (security) => security.yield + security.growthRate,
+      {
+        targetRatePpm,
+        metricRatePpmOf(security) {
+          const canonical = canonicalBySecurity.get(security);
+          return canonical.yieldRatePpm + canonical.growthRatePpm;
+        }
+      }
     );
 
     const blendedRates = computeBlendedRates(
