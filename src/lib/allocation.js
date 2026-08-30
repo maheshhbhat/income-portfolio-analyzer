@@ -45,7 +45,7 @@ function allocateCluster(cluster, totalCents) {
  *   bestAchievableMetric: number
  * }}
  */
-export function bracketAndBlend(investmentAmount, securities, targetRate, metricOf) {
+function bracketAndBlendCore(investmentCents, securities, targetRate, metricOf) {
   const clusterSize = Math.max(1, Math.min(5, Math.floor(securities.length / 2)));
 
   const ascByMetric = securities.slice().sort((a, b) => metricOf(a) - metricOf(b));
@@ -78,7 +78,6 @@ export function bracketAndBlend(investmentAmount, securities, targetRate, metric
     w = highAvg === lowAvg ? 1 : clamp((targetRate - lowAvg) / (highAvg - lowAvg), 0, 1);
   }
 
-  const investmentCents = Math.round(investmentAmount * 100);
   const highTotalCents = Math.round(investmentCents * w);
   const lowTotalCents = investmentCents - highTotalCents;
 
@@ -87,6 +86,18 @@ export function bracketAndBlend(investmentAmount, securities, targetRate, metric
     ...allocateCluster(lowCluster, lowTotalCents)
   ].filter((a) => a.cents > 0);
 
+  return { combined, unreachable, bestAchievableMetric };
+}
+
+export function bracketAndBlend(investmentAmount, securities, targetRate, metricOf) {
+  const investmentCents = Math.round(investmentAmount * 100);
+  const { combined, unreachable, bestAchievableMetric } = bracketAndBlendCore(
+    investmentCents,
+    securities,
+    targetRate,
+    metricOf
+  );
+
   const items = combined
     .map((a) => ({
       security: a.security,
@@ -94,6 +105,41 @@ export function bracketAndBlend(investmentAmount, securities, targetRate, metric
       percentOfPortfolio: a.cents / investmentCents
     }))
     .sort((a, b) => b.amount - a.amount);
+
+  return { items, unreachable, bestAchievableMetric };
+}
+
+/**
+ * Integer-cent counterpart of `bracketAndBlend`, used by callers (such as the
+ * spending guardrail comparison) that must keep money as integer cents at
+ * every layer instead of routing cents through the dollar API.
+ *
+ * @param {number} investmentAmountCents safe integer, greater than 0
+ * @returns {{
+ *   items: Array<{security: object, amountCents: number, percentOfPortfolio: number}>,
+ *   unreachable: boolean,
+ *   bestAchievableMetric: number
+ * }}
+ */
+export function bracketAndBlendCents(investmentAmountCents, securities, targetRate, metricOf) {
+  if (!Number.isSafeInteger(investmentAmountCents) || investmentAmountCents <= 0) {
+    throw new RangeError('investmentAmountCents must be a safe integer greater than 0.');
+  }
+
+  const { combined, unreachable, bestAchievableMetric } = bracketAndBlendCore(
+    investmentAmountCents,
+    securities,
+    targetRate,
+    metricOf
+  );
+
+  const items = combined
+    .map((a) => ({
+      security: a.security,
+      amountCents: a.cents,
+      percentOfPortfolio: a.cents / investmentAmountCents
+    }))
+    .sort((a, b) => b.amountCents - a.amountCents);
 
   return { items, unreachable, bestAchievableMetric };
 }
