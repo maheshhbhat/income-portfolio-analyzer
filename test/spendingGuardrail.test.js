@@ -17,6 +17,31 @@ function countWork(result) {
   return result.securityCount + result.allocationItemCount + result.yearCount + result.allocationCallCount;
 }
 
+function assertSafeIntegerMoneyResult(result, expectedHorizonYears) {
+  assert.equal(result.ok, true);
+
+  for (const item of result.allocation.items) {
+    assert.ok(Number.isSafeInteger(item.amountCents));
+    assert.ok(item.amountCents > 0);
+  }
+
+  for (const path of [result.steady, result.guardrail]) {
+    assert.ok(Number.isSafeInteger(path.totalWithdrawalsPaidCents));
+    assert.ok(Number.isSafeInteger(path.endingBalanceCents));
+    assert.equal(path.rows.length, expectedHorizonYears);
+
+    for (const row of path.rows) {
+      assert.ok(Number.isSafeInteger(row.startingBalanceCents));
+      assert.ok(Number.isSafeInteger(row.dividendIncomeCents));
+      assert.ok(Number.isSafeInteger(row.growthAmountCents));
+      assert.ok(Number.isSafeInteger(row.totalReturnCents));
+      assert.ok(Number.isSafeInteger(row.withdrawalRequestedCents));
+      assert.ok(Number.isSafeInteger(row.withdrawalPaidCents));
+      assert.ok(Number.isSafeInteger(row.endingBalanceCents));
+    }
+  }
+}
+
 test('bracketAndBlendCents returns positive safe-integer cents with the original security objects and an exact sum', () => {
   const securities = [
     { symbol: 'A', name: 'A', type: 'etf', yield: 0.01, growthRate: 0.01 },
@@ -68,30 +93,9 @@ test('computeSpendingGuardrail returns safe-integer money fields for representat
     SECURITIES
   );
 
-  assert.equal(result.ok, true);
   assert.equal(result.inflationRatePpm, 30000);
   assert.equal(result.postTriggerReductionRatePpm, 100000);
-
-  for (const item of result.allocation.items) {
-    assert.ok(Number.isSafeInteger(item.amountCents));
-    assert.ok(item.amountCents > 0);
-  }
-
-  for (const path of [result.steady, result.guardrail]) {
-    assert.ok(Number.isSafeInteger(path.totalWithdrawalsPaidCents));
-    assert.ok(Number.isSafeInteger(path.endingBalanceCents));
-    assert.equal(path.rows.length, 30);
-
-    for (const row of path.rows) {
-      assert.ok(Number.isSafeInteger(row.startingBalanceCents));
-      assert.ok(Number.isSafeInteger(row.dividendIncomeCents));
-      assert.ok(Number.isSafeInteger(row.growthAmountCents));
-      assert.ok(Number.isSafeInteger(row.totalReturnCents));
-      assert.ok(Number.isSafeInteger(row.withdrawalRequestedCents));
-      assert.ok(Number.isSafeInteger(row.withdrawalPaidCents));
-      assert.ok(Number.isSafeInteger(row.endingBalanceCents));
-    }
-  }
+  assertSafeIntegerMoneyResult(result, 30);
 });
 
 test('unreachable allocation preserves best-achievable metadata for the UI', () => {
@@ -228,6 +232,76 @@ test('two separate valid calls serialize identically', () => {
   assert.equal(first.ok, true);
   assert.equal(second.ok, true);
   assert.equal(JSON.stringify(first), JSON.stringify(second));
+});
+
+test('valid-input matrix covers 30-plus deterministic cases with safe-integer money results', () => {
+  const investmentAmounts = [2500000, 5000000, 12500000, 50000000];
+  const withdrawalAmounts = [0, 50000, 125000, 250000];
+  const horizonYearsList = [1, 5, 30];
+  const inflationRates = [0, 0.01, 0.03];
+  const safetyFloors = [0, 250000, 1000000];
+  const reductionPercents = [0, 10, 50, 100];
+
+  const cases = [];
+  for (const investmentAmountCents of investmentAmounts) {
+    for (const desiredAnnualWithdrawalCents of withdrawalAmounts) {
+      if (desiredAnnualWithdrawalCents > investmentAmountCents) {
+        continue;
+      }
+      for (const horizonYears of horizonYearsList) {
+        for (const inflationRate of inflationRates) {
+          for (const safetyFloorCents of safetyFloors) {
+            if (safetyFloorCents > investmentAmountCents) {
+              continue;
+            }
+            for (const postTriggerReductionPercent of reductionPercents) {
+              cases.push({
+                investmentAmountCents,
+                desiredAnnualWithdrawalCents,
+                horizonYears,
+                inflationRate,
+                safetyFloorCents,
+                postTriggerReductionPercent
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const matrix = cases.slice(0, 36);
+  assert.ok(matrix.length >= 30);
+
+  for (const input of matrix) {
+    const first = computeSpendingGuardrail(input, SECURITIES);
+    const second = computeSpendingGuardrail({ ...input }, SECURITIES);
+
+    assertSafeIntegerMoneyResult(first, input.horizonYears);
+    assertSafeIntegerMoneyResult(second, input.horizonYears);
+    assert.equal(JSON.stringify(first), JSON.stringify(second), `serialization mismatch for ${JSON.stringify(input)}`);
+  }
+});
+
+test('post-trigger reduction percent above 100 is invalid input, not safe-arithmetic refusal', () => {
+  const result = computeSpendingGuardrail(
+    {
+      investmentAmountCents: 10000,
+      desiredAnnualWithdrawalCents: 500,
+      horizonYears: 5,
+      inflationRate: 0,
+      safetyFloorCents: 0,
+      postTriggerReductionPercent: 101
+    },
+    zeroReturnSecurities()
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid-input');
+  assert.match(result.error, /between 0 and 100 inclusive/);
+  assert.equal('allocation' in result, false);
+  assert.equal('steady' in result, false);
+  assert.equal('guardrail' in result, false);
 });
 
 test('off-scale inflation and curated rates are refused without leaking any money result', () => {

@@ -171,13 +171,21 @@ function applyReduction(withdrawalCents, reductionRatePpm) {
 }
 
 function parsePostTriggerReductionPercent(percent) {
-  const scaledPercent = parseScaledDecimal(percent, 'post-trigger reduction percent');
+  let scaledPercent;
+  try {
+    scaledPercent = parseScaledDecimal(percent, 'post-trigger reduction percent');
+  } catch (error) {
+    if (error instanceof RangeError) {
+      throw new TypeError(error.message);
+    }
+    throw error;
+  }
   const maximumScaledPercent = RATE_SCALE * 100;
   if (scaledPercent > maximumScaledPercent) {
-    throw new RangeError('post-trigger reduction percent must be between 0 and 100 inclusive.');
+    throw new TypeError('post-trigger reduction percent must be between 0 and 100 inclusive.');
   }
   if (scaledPercent % 100 !== 0) {
-    throw new RangeError('post-trigger reduction percent must produce an exact 0.000001 rate.');
+    throw new TypeError('post-trigger reduction percent must produce an exact 0.000001 rate.');
   }
   return scaledPercent / 100;
 }
