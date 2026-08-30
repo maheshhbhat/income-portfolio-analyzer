@@ -3,6 +3,7 @@ import { computeRetirementScenarios } from './src/lib/retirementScenarios.js';
 import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
 import { computeMaxSustainableWithdrawal } from './src/lib/maxSustainableWithdrawal.js';
 import { computeLegacyWithdrawal } from './src/lib/legacyWithdrawal.js';
+import { computeSpendingGuardrail } from './src/lib/spendingGuardrail.js';
 import { SECURITIES } from './src/data/securities.js';
 import { selectProvider } from './src/data/providers/index.js';
 
@@ -44,6 +45,16 @@ const legacyEndingBalance = document.getElementById('legacy-ending-balance');
 const legacyCatalogReturn = document.getElementById('legacy-catalog-return');
 const legacyAllocationBody = document.getElementById('legacy-allocation-body');
 const legacyProjectionBody = document.getElementById('legacy-projection-body');
+const spendingGuardrailForm = document.getElementById('spending-guardrail-form');
+const spendingGuardrailError = document.getElementById('spending-guardrail-error');
+const spendingGuardrailResults = document.getElementById('spending-guardrail-results');
+const spendingGuardrailUnreachable = document.getElementById('spending-guardrail-unreachable');
+const spendingGuardrailTrigger = document.getElementById('spending-guardrail-trigger');
+const spendingGuardrailSummary = document.getElementById('spending-guardrail-summary');
+const spendingGuardrailAllocation = document.getElementById('spending-guardrail-allocation');
+const spendingGuardrailAllocationBody = document.getElementById('spending-guardrail-allocation-body');
+const spendingGuardrailSteadyBody = document.getElementById('spending-guardrail-steady-body');
+const spendingGuardrailGuardrailBody = document.getElementById('spending-guardrail-guardrail-body');
 
 let activeProviderSnapshot = null;
 
@@ -62,12 +73,39 @@ const formatType = (type) => TYPE_LABELS[type] || type;
 function parseUsdInputToCents(value) {
   const trimmed = `${value ?? ''}`.trim();
   if (!trimmed) return NaN;
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(trimmed)) return NaN;
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(trimmed)) return NaN;
 
   const [dollars, cents = ''] = trimmed.split('.');
+  // Reject sub-cent input before padding the fraction. Padding is only for
+  // accepted whole-dollar and one-decimal-place values.
+  if (cents.length > 2) return NaN;
   const normalizedCents = `${cents}00`.slice(0, 2);
-  const amountCents = Number(dollars) * 100 + Number(normalizedCents);
+  const centsText = `${dollars}${normalizedCents}`.replace(/^0+(?=\d)/, '');
+  const amountCents = Number(centsText || '0');
   return Number.isSafeInteger(amountCents) ? amountCents : NaN;
+}
+
+// The core consumes a non-negative rate as an exact parts-per-million fraction.
+// This parser accepts a percentage entry only when its conversion to that scale
+// is exact; it never rounds a finer user-entered value.
+function parsePercentInputToRatePpm(value) {
+  const trimmed = `${value ?? ''}`.trim();
+  if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(trimmed)) return NaN;
+  const [whole, fraction = ''] = trimmed.split('.');
+  const digits = `${whole}${fraction}`.replace(/^0+(?=\d)/, '') || '0';
+  const decimalPlaces = fraction.length;
+  const ppmShift = 4 - decimalPlaces;
+  if (ppmShift < 0 && /[1-9]/.test(digits.slice(ppmShift))) return NaN;
+  const ppmText = ppmShift >= 0
+    ? `${digits}${'0'.repeat(ppmShift)}`
+    : digits.slice(0, ppmShift) || '0';
+  const ratePpm = Number(ppmText);
+  return Number.isSafeInteger(ratePpm) ? ratePpm : NaN;
+}
+
+function parsePercentInputToRate(value) {
+  const ratePpm = parsePercentInputToRatePpm(value);
+  return Number.isNaN(ratePpm) ? NaN : ratePpm / 1000000;
 }
 
 function formatUsdCents(cents) {
@@ -548,6 +586,174 @@ function runScenarioComparison() {
 
 scenarioComparisonSubmit?.addEventListener('click', () => {
   runScenarioComparison();
+});
+
+function clearSpendingGuardrailError() {
+  spendingGuardrailError.hidden = true;
+  spendingGuardrailError.textContent = '';
+}
+
+function clearSpendingGuardrailOutputs() {
+  spendingGuardrailResults.hidden = true;
+  spendingGuardrailUnreachable.hidden = true;
+  spendingGuardrailUnreachable.textContent = '';
+  spendingGuardrailTrigger.hidden = true;
+  spendingGuardrailTrigger.textContent = '';
+  spendingGuardrailSummary.replaceChildren();
+  spendingGuardrailAllocation.hidden = true;
+  spendingGuardrailAllocationBody.replaceChildren();
+  spendingGuardrailSteadyBody.replaceChildren();
+  spendingGuardrailGuardrailBody.replaceChildren();
+}
+
+function showSpendingGuardrailError(message) {
+  // A refusal is a complete browser outcome. Clear before it becomes visible so
+  // no prior money result can be mistaken for a response to this submission.
+  clearSpendingGuardrailOutputs();
+  spendingGuardrailError.textContent = message;
+  spendingGuardrailError.hidden = false;
+}
+
+function spendingGuardrailCard(label, path) {
+  const card = document.createElement('article');
+  card.className = 'comparison__card';
+  const heading = document.createElement('h3');
+  heading.textContent = label;
+  card.appendChild(heading);
+  const list = document.createElement('dl');
+  for (const [term, value] of [
+    ['Total withdrawals paid', formatUsdCents(path.totalWithdrawalsPaidCents)],
+    ['Ending balance', formatUsdCents(path.endingBalanceCents)]
+  ]) {
+    const dt = document.createElement('dt');
+    const dd = document.createElement('dd');
+    dt.textContent = term;
+    dd.textContent = value;
+    list.append(dt, dd);
+  }
+  card.appendChild(list);
+  return card;
+}
+
+function appendSpendingGuardrailRows(body, rows) {
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    for (const value of [
+      row.year,
+      formatUsdCents(row.startingBalanceCents),
+      formatUsdCents(row.dividendIncomeCents),
+      formatUsdCents(row.growthAmountCents),
+      formatUsdCents(row.withdrawalPaidCents),
+      formatUsdCents(row.endingBalanceCents)
+    ]) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+    body.appendChild(tr);
+  }
+}
+
+function appendSpendingGuardrailAllocation(items) {
+  for (const item of items) {
+    const tr = document.createElement('tr');
+    for (const value of [
+      item.security.symbol,
+      formatUsdCents(item.amountCents),
+      percent(item.percentOfPortfolio)
+    ]) {
+      const td = document.createElement('td');
+      td.textContent = value;
+      tr.appendChild(td);
+    }
+    spendingGuardrailAllocationBody.appendChild(tr);
+  }
+}
+
+function renderSpendingGuardrail(result) {
+  clearSpendingGuardrailError();
+  clearSpendingGuardrailOutputs();
+  spendingGuardrailSummary.append(
+    spendingGuardrailCard('Steady plan', result.steady),
+    spendingGuardrailCard('Spending guardrail plan', result.guardrail)
+  );
+  appendSpendingGuardrailAllocation(result.allocation.items);
+  spendingGuardrailAllocation.hidden = false;
+  appendSpendingGuardrailRows(spendingGuardrailSteadyBody, result.steady.rows);
+  appendSpendingGuardrailRows(spendingGuardrailGuardrailBody, result.guardrail.rows);
+
+  if (result.allocation.unreachable) {
+    spendingGuardrailUnreachable.textContent =
+      'Requested withdrawal rate is unreachable from the curated list. Showing the shared best-achievable allocation.';
+    spendingGuardrailUnreachable.hidden = false;
+  }
+  spendingGuardrailTrigger.textContent = result.guardrail.floorReached
+    ? `Safety floor triggered in year ${result.guardrail.triggerYear}; the reduction applies from that year forward.`
+    : 'Safety floor not reached within the selected horizon.';
+  spendingGuardrailTrigger.hidden = false;
+  spendingGuardrailResults.hidden = false;
+}
+
+function runSpendingGuardrailComparison() {
+  clearSpendingGuardrailError();
+  clearSpendingGuardrailOutputs();
+  const investmentAmountCents = parseUsdInputToCents(document.getElementById('spending-guardrail-portfolio').value);
+  const desiredAnnualWithdrawalCents = parseUsdInputToCents(document.getElementById('spending-guardrail-withdrawal').value);
+  const safetyFloorCents = parseUsdInputToCents(document.getElementById('spending-guardrail-floor').value);
+  const horizonYears = Number(document.getElementById('spending-guardrail-horizon').value);
+  const inflationRate = parsePercentInputToRate(document.getElementById('spending-guardrail-inflation').value);
+  const reductionInput = document.getElementById('spending-guardrail-reduction').value;
+  const reductionRatePpm = parsePercentInputToRatePpm(reductionInput);
+  const postTriggerReductionPercent = Number.isNaN(reductionRatePpm) ? NaN : Number(reductionInput);
+
+  if (!Number.isSafeInteger(investmentAmountCents) || investmentAmountCents <= 0) {
+    showSpendingGuardrailError('Starting portfolio must be a plain dollar amount greater than $0 with at most two decimal places.');
+    return;
+  }
+  if (!Number.isSafeInteger(desiredAnnualWithdrawalCents) || desiredAnnualWithdrawalCents < 0) {
+    showSpendingGuardrailError('Desired annual withdrawal must be a plain non-negative dollar amount with at most two decimal places.');
+    return;
+  }
+  if (!Number.isSafeInteger(safetyFloorCents) || safetyFloorCents < 0) {
+    showSpendingGuardrailError('Safety-floor balance must be a plain non-negative dollar amount with at most two decimal places.');
+    return;
+  }
+  if (!Number.isInteger(horizonYears) || horizonYears < 1) {
+    showSpendingGuardrailError('Retirement horizon must be a whole number of at least 1.');
+    return;
+  }
+  if (!Number.isFinite(inflationRate)) {
+    showSpendingGuardrailError('Inflation must map exactly to the supported 0.000001 rate scale; finer precision is not accepted.');
+    return;
+  }
+  if (!Number.isFinite(postTriggerReductionPercent) || postTriggerReductionPercent > 100) {
+    showSpendingGuardrailError('Post-trigger reduction must be between 0% and 100% and map exactly to the supported rate scale.');
+    return;
+  }
+
+  // This flow deliberately passes the product-owned constant directly to the
+  // pure core and has no external-data dependency.
+  const result = computeSpendingGuardrail({
+    investmentAmountCents,
+    desiredAnnualWithdrawalCents,
+    horizonYears,
+    inflationRate,
+    safetyFloorCents,
+    postTriggerReductionPercent
+  }, SECURITIES);
+
+  if (!result.ok) {
+    showSpendingGuardrailError(result.reason === 'safe-arithmetic-refusal'
+      ? `This request exceeds the calculator's safe arithmetic range: ${result.error}`
+      : result.error);
+    return;
+  }
+  renderSpendingGuardrail(result);
+}
+
+spendingGuardrailForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  runSpendingGuardrailComparison();
 });
 
 // --- Required starting portfolio section ---

@@ -161,7 +161,8 @@ button[type="submit"]:hover {
 
 .legacy-withdrawal,
 .maximum-withdrawal,
-.required-portfolio {
+.required-portfolio,
+.spending-guardrail {
   margin-top: 3rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--border);
@@ -182,7 +183,8 @@ button[type="submit"]:hover {
 }
 
 .comparison__summary,
-.comparison__projections {
+.comparison__projections,
+.spending-guardrail__tables {
   display: grid;
   gap: 1rem;
 }

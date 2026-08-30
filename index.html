@@ -195,6 +195,77 @@
       </section>
     </section>
 
+    <section class="spending-guardrail" aria-labelledby="spending-guardrail-title">
+      <h2 id="spending-guardrail-title" class="section-title">Steady vs. spending guardrail</h2>
+      <p class="page__subtitle">
+        Compare a steady withdrawal with a deterministic spending guardrail using this repository's curated
+        illustrative securities. The guardrail reduces the scheduled withdrawal starting in the first year
+        whose starting balance reaches the safety floor. This is an illustration, not financial advice.
+      </p>
+
+      <form id="spending-guardrail-form" class="form" novalidate>
+        <div class="form__field">
+          <label for="spending-guardrail-portfolio">Starting portfolio ($)</label>
+          <input type="text" inputmode="decimal" id="spending-guardrail-portfolio" placeholder="1000000" required />
+        </div>
+        <div class="form__field">
+          <label for="spending-guardrail-withdrawal">Desired annual withdrawal ($)</label>
+          <input type="text" inputmode="decimal" id="spending-guardrail-withdrawal" placeholder="40000" required />
+        </div>
+        <div class="form__field">
+          <label for="spending-guardrail-horizon">Retirement horizon (years)</label>
+          <input type="number" id="spending-guardrail-horizon" min="1" step="1" value="30" required />
+        </div>
+        <div class="form__field">
+          <label for="spending-guardrail-inflation">Inflation rate (%/yr)</label>
+          <input type="text" inputmode="decimal" id="spending-guardrail-inflation" value="3" required />
+        </div>
+        <div class="form__field">
+          <label for="spending-guardrail-floor">Safety-floor balance ($)</label>
+          <input type="text" inputmode="decimal" id="spending-guardrail-floor" value="0" required />
+        </div>
+        <div class="form__field">
+          <label for="spending-guardrail-reduction">Post-trigger reduction (%)</label>
+          <input type="text" inputmode="decimal" id="spending-guardrail-reduction" value="10" required />
+        </div>
+        <button type="submit" id="spending-guardrail-submit">Compare withdrawal plans</button>
+      </form>
+
+      <p id="spending-guardrail-error" class="error" role="alert" hidden></p>
+
+      <section id="spending-guardrail-results" class="results" hidden aria-live="polite">
+        <p id="spending-guardrail-unreachable" class="banner banner--warn" hidden></p>
+        <p id="spending-guardrail-trigger" class="banner" hidden></p>
+        <div id="spending-guardrail-summary" class="comparison__summary"></div>
+
+        <section id="spending-guardrail-allocation" class="comparison__projection" hidden>
+          <h3>Shared allocation</h3>
+          <p class="comparison__disclosure">Both plans use this same illustrative allocation from the curated securities list.</p>
+          <table class="allocation-table">
+            <thead><tr><th>Security</th><th>Allocation</th><th>Portfolio share</th></tr></thead>
+            <tbody id="spending-guardrail-allocation-body"></tbody>
+          </table>
+        </section>
+
+        <div class="spending-guardrail__tables">
+          <section class="comparison__projection">
+            <h3>Steady year-by-year table</h3>
+            <table class="allocation-table">
+              <thead><tr><th>Year</th><th>Starting balance</th><th>Dividend income</th><th>Growth</th><th>Withdrawal paid</th><th>Ending balance</th></tr></thead>
+              <tbody id="spending-guardrail-steady-body"></tbody>
+            </table>
+          </section>
+          <section class="comparison__projection">
+            <h3>Guardrail year-by-year table</h3>
+            <table class="allocation-table">
+              <thead><tr><th>Year</th><th>Starting balance</th><th>Dividend income</th><th>Growth</th><th>Withdrawal paid</th><th>Ending balance</th></tr></thead>
+              <tbody id="spending-guardrail-guardrail-body"></tbody>
+            </table>
+          </section>
+        </div>
+      </section>
+    </section>
+
     <section class="legacy-withdrawal" aria-labelledby="legacy-withdrawal-title">
       <h2 id="legacy-withdrawal-title" class="section-title">Legacy withdrawal planner</h2>
       <p class="page__subtitle">
