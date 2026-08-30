@@ -140,6 +140,15 @@ test('post-trigger reduction: half-cent ties round up (half-up)', () => {
   assert.equal(applyPostTriggerReduction(5, 25), 4);
 });
 
+test('post-trigger reduction preserves valid decimal precision instead of quantizing to hundredths', () => {
+  // 10,000 cents reduced by exactly 33.333% leaves 6,666.7 cents, half-up to 6,667.
+  assert.equal(applyPostTriggerReduction(10_000, 33.333), 6_667);
+  // 99.999% is not promoted to 100%; its remaining 0.001% pays one cent here.
+  assert.equal(applyPostTriggerReduction(100_000, 99.999), 1);
+  // Scientific notation is another valid finite-number spelling of the same exact ratio.
+  assert.equal(applyPostTriggerReduction(10_000, 3.3333e1), 6_667);
+});
+
 // --- Single-trigger rule, corrected post-depletion timing -------------------
 
 test('no-trigger case: guardrail matches the steady path exactly and triggerYear is null', () => {

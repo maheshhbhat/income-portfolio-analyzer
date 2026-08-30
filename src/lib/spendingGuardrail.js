@@ -38,8 +38,6 @@ import {
   growWithdrawalByInflation
 } from './legacyWithdrawalProjection.js';
 
-const REDUCTION_SCALE = 10000; // integer percent scale (percent * 100), so 0-100 -> 0-10000
-
 function invalid(error) {
   return { ok: false, reason: 'invalid-input', error };
 }
@@ -128,16 +126,39 @@ function halfUpDivideBigInt(numerator, denominator) {
   return negative ? -rounded : rounded;
 }
 
+function decimalPercentRatio(percent) {
+  const [coefficient, exponentText] = String(percent).toLowerCase().split('e');
+  const exponent = exponentText === undefined ? 0 : Number(exponentText);
+  const [whole, fraction = ''] = coefficient.split('.');
+  const digits = `${whole}${fraction}`;
+  const scaleExponent = fraction.length - exponent;
+
+  if (scaleExponent <= 0) {
+    return {
+      numerator: BigInt(digits) * (10n ** BigInt(-scaleExponent)),
+      denominator: 1n
+    };
+  }
+
+  return {
+    numerator: BigInt(digits),
+    denominator: 10n ** BigInt(scaleExponent)
+  };
+}
+
 /**
- * Reduce `withdrawalCents` by `postTriggerReductionPercent` (0-100, may carry
- * up to two decimal places) using an integer percent scale and BigInt
- * half-up rounding, so a half-cent result rounds up rather than truncating.
+ * Reduce `withdrawalCents` by the exact decimal value represented by
+ * `postTriggerReductionPercent` (0-100). The decimal ratio is converted to
+ * integers before the BigInt half-up division, so values such as 33.333 are
+ * never silently rounded to a coarser percentage precision.
  */
 export function applyPostTriggerReduction(withdrawalCents, postTriggerReductionPercent) {
-  const reductionScaled = Math.round(postTriggerReductionPercent * (REDUCTION_SCALE / 100));
-  const remainingScaled = BigInt(REDUCTION_SCALE) - BigInt(reductionScaled);
-  const numerator = BigInt(withdrawalCents) * remainingScaled;
-  const reduced = halfUpDivideBigInt(numerator, BigInt(REDUCTION_SCALE));
+  const { numerator: reductionNumerator, denominator: reductionDenominator } = decimalPercentRatio(
+    postTriggerReductionPercent
+  );
+  const remainingNumerator = reductionDenominator * 100n - reductionNumerator;
+  const numerator = BigInt(withdrawalCents) * remainingNumerator;
+  const reduced = halfUpDivideBigInt(numerator, reductionDenominator * 100n);
   const asNumber = Number(reduced);
   if (!Number.isSafeInteger(asNumber)) {
     throw new RangeError('Reduced withdrawal exceeds the safe integer range.');
