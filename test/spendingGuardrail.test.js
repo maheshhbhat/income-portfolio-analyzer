@@ -413,6 +413,9 @@ test('invalid input is rejected as {ok:false, reason:"invalid-input", error} wit
     { ...base, horizonYears: 10.5 },
     { ...base, inflationRate: -0.01 },
     { ...base, inflationRate: NaN },
+    // Finite but too large to canonicalize safely; previously this reached
+    // BigInt conversion during simulation and threw.
+    { ...base, inflationRate: Number.MAX_VALUE },
     { ...base, safetyFloorCents: -1 },
     { ...base, safetyFloorCents: 1.5 },
     { ...base, postTriggerReductionPercent: -1 },

@@ -82,6 +82,9 @@ export function validateGuardrailInputs(input, securities) {
   if (!Number.isFinite(inflationRate) || inflationRate < 0) {
     return invalid('Enter an inflation rate of 0% or more.');
   }
+  if (!Number.isSafeInteger(canonicalizeInflationRate(inflationRate))) {
+    return invalid('Enter an inflation rate that can be represented safely at the supported precision.');
+  }
   if (!Number.isSafeInteger(safetyFloorCents) || safetyFloorCents < 0) {
     return invalid('Enter a safety-floor balance as a safe whole number of cents of $0 or more.');
   }
