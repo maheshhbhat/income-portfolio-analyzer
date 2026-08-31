@@ -228,11 +228,11 @@ async function runRealChromeHarness() {
     let stderr = '';
     chrome.stdout.on('data', (chunk) => { stdout += chunk.toString('utf8'); });
     chrome.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8'); });
-    const [code] = await new Promise((resolve, reject) => {
+    const [code, signal] = await new Promise((resolve, reject) => {
       chrome.once('error', reject);
       chrome.once('exit', (...args) => resolve(args));
     });
-    assert.equal(code, 0, `Chrome exited cleanly.\n${stderr}`);
+    assert.equal(code, 0, `Chrome exited cleanly (signal: ${signal ?? 'none'}).\n${stderr}`);
     const match = stdout.match(/<pre id="guardrail-chrome-result" hidden="">([\s\S]*?)<\/pre>/);
     assert.ok(match, `Chrome harness result was rendered.\n${stdout}\n${stderr}`);
     return JSON.parse(match[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>'));
@@ -241,14 +241,8 @@ async function runRealChromeHarness() {
   }
 }
 
-test('OE-RESP-1: real Chrome click-to-render assurance covers the completed guardrail comparison', { timeout: 30000 }, async (t) => {
-  let outcome;
-  try {
-    outcome = await runRealChromeHarness();
-  } catch (error) {
-    t.skip(`Chrome browser flow could not run in this environment: ${error.message}`);
-    return;
-  }
+test('OE-RESP-1: real Chrome click-to-render assurance covers the completed guardrail comparison', { timeout: 30000 }, async () => {
+  const outcome = await runRealChromeHarness();
   assert.equal(outcome.harnessError, undefined, outcome.harnessError);
   for (const run of outcome.representativeRuns) {
     assert.equal(run.visible, true, `$${run.portfolio} comparison is visible`);
