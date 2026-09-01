@@ -4,9 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 
-const CHROME_BIN = process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const CHROME_CANDIDATES = [
+  process.env.CHROME_BIN,
+  '/Users/aiengineer/Library/Caches/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-mac-x64/chrome-headless-shell',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Users/aiengineer/Library/Caches/ms-playwright/chromium-1234/chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
+].filter(Boolean);
 
 class ChromeElement {
   constructor(tagName = 'div', { hidden = false, value = '' } = {}) {
@@ -219,11 +225,18 @@ async function runRealChromeHarness() {
   try {
     const harnessPath = path.join(tempDir, 'spending-guardrail-browser-harness.html');
     await writeFile(harnessPath, await buildRealChromeHarness(), 'utf8');
-    const chrome = spawn(CHROME_BIN, [
-      '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-      '--allow-file-access-from-files', '--virtual-time-budget=1000', '--dump-dom',
-      new URL(`file://${harnessPath}`).href
-    ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const chromeBin = await findChromeBinary();
+    const chrome = spawn(chromeBin, chromeLaunchArgs(harnessPath, tempDir), {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        HOME: tempDir,
+        TMPDIR: tempDir,
+        TMP: tempDir,
+        TEMP: tempDir,
+        CHROME_HEADLESS: '1'
+      }
+    });
     let stdout = '';
     let stderr = '';
     chrome.stdout.on('data', (chunk) => { stdout += chunk.toString('utf8'); });
@@ -232,13 +245,49 @@ async function runRealChromeHarness() {
       chrome.once('error', reject);
       chrome.once('exit', (...args) => resolve(args));
     });
-    assert.equal(code, 0, `Chrome exited cleanly (signal: ${signal ?? 'none'}).\n${stderr}`);
+    assert.equal(code, 0,
+      `Chrome exited cleanly from ${chromeBin} (signal: ${signal ?? 'none'}).\n${stderr}`);
     const match = stdout.match(/<pre id="guardrail-chrome-result" hidden="">([\s\S]*?)<\/pre>/);
     assert.ok(match, `Chrome harness result was rendered.\n${stdout}\n${stderr}`);
     return JSON.parse(match[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>'));
   } finally {
     await rm(tempDir, { recursive: true, force: true });
   }
+}
+
+async function findChromeBinary() {
+  const failures = [];
+  for (const candidate of CHROME_CANDIDATES) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch (error) {
+      failures.push(`${candidate}: ${error.message}`);
+    }
+  }
+  assert.fail(`No Chrome binary was available for OE-RESP-1.\n${failures.join('\n')}`);
+}
+
+function chromeLaunchArgs(harnessPath, tempDir) {
+  return [
+    '--headless=new',
+    '--single-process',
+    '--no-sandbox',
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-background-networking',
+    '--disable-breakpad',
+    '--disable-component-update',
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--allow-file-access-from-files',
+    `--user-data-dir=${path.join(tempDir, 'profile')}`,
+    `--data-path=${path.join(tempDir, 'data')}`,
+    `--disk-cache-dir=${path.join(tempDir, 'cache')}`,
+    '--virtual-time-budget=1000',
+    '--dump-dom',
+    new URL(`file://${harnessPath}`).href
+  ];
 }
 
 test('OE-RESP-1: real Chrome click-to-render assurance covers the completed guardrail comparison', { timeout: 30000 }, async () => {
