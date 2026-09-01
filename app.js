@@ -4,6 +4,7 @@ import { computeRequiredPortfolio } from './src/lib/requiredPortfolio.js';
 import { computeMaxSustainableWithdrawal } from './src/lib/maxSustainableWithdrawal.js';
 import { computeLegacyWithdrawal } from './src/lib/legacyWithdrawal.js';
 import { computeSpendingGuardrail } from './src/lib/spendingGuardrail.js';
+import { computeRetirementHorizonComparison } from './src/lib/retirementHorizonComparison.js';
 import { SECURITIES } from './src/data/securities.js';
 import { selectProvider } from './src/data/providers/index.js';
 
@@ -35,6 +36,11 @@ const scenarioComparisonProjections = document.getElementById('scenario-comparis
 const scenarioDeterministicDisclosure = document.getElementById('scenario-deterministic-disclosure');
 const scenarioSimplificationDisclosure = document.getElementById('scenario-simplification-disclosure');
 const scenarioSequenceDisclosure = document.getElementById('scenario-sequence-disclosure');
+const horizonComparisonSubmit = document.getElementById('horizon-comparison-submit');
+const horizonComparisonError = document.getElementById('horizon-comparison-error');
+const horizonComparisonResults = document.getElementById('horizon-comparison-results');
+const horizonComparisonSummary = document.getElementById('horizon-comparison-summary');
+const horizonComparisonProjections = document.getElementById('horizon-comparison-projections');
 const legacyWithdrawalForm = document.getElementById('legacy-withdrawal-form');
 const legacyWithdrawalError = document.getElementById('legacy-withdrawal-error');
 const legacyWithdrawalRefusal = document.getElementById('legacy-withdrawal-refusal');
@@ -267,6 +273,28 @@ function showScenarioComparisonError(message) {
   scenarioComparisonError.hidden = false;
 }
 
+function clearHorizonComparisonError() {
+  if (!horizonComparisonError) return;
+  horizonComparisonError.hidden = true;
+  horizonComparisonError.textContent = '';
+}
+
+function clearHorizonComparisonOutputs() {
+  if (!horizonComparisonResults) return;
+  horizonComparisonResults.hidden = true;
+  horizonComparisonSummary.replaceChildren?.();
+  horizonComparisonProjections.replaceChildren?.();
+  horizonComparisonSummary.innerHTML = '';
+  horizonComparisonProjections.innerHTML = '';
+}
+
+function showHorizonComparisonError(message) {
+  if (!horizonComparisonError) return;
+  clearHorizonComparisonOutputs();
+  horizonComparisonError.textContent = message;
+  horizonComparisonError.hidden = false;
+}
+
 /**
  * Results are tied to the snapshot used for their calculation. A successful
  * provider refresh therefore makes both calculators stale until the user
@@ -285,6 +313,8 @@ function invalidateCalculatedResults() {
   clearComparisonOutputs();
   clearScenarioComparisonError();
   clearScenarioComparisonOutputs();
+  clearHorizonComparisonError();
+  clearHorizonComparisonOutputs();
 }
 
 function render(result) {
@@ -586,6 +616,43 @@ function runScenarioComparison() {
 
 scenarioComparisonSubmit?.addEventListener('click', () => {
   runScenarioComparison();
+});
+
+function renderHorizonComparison(comparison) {
+  clearHorizonComparisonError();
+  clearHorizonComparisonOutputs();
+
+  for (const scenario of comparison.scenarios) {
+    horizonComparisonSummary.appendChild(comparisonCard(scenario.result, scenario.label));
+    horizonComparisonProjections.appendChild(comparisonProjection(scenario.result, scenario.label));
+  }
+
+  horizonComparisonResults.hidden = false;
+}
+
+function runHorizonComparison() {
+  clearHorizonComparisonError();
+  clearHorizonComparisonOutputs();
+
+  const investmentAmount = Number.parseFloat(document.getElementById('investment-amount').value);
+  const desiredAnnualWithdrawal = Number.parseFloat(document.getElementById('desired-income').value);
+  const inflationRate = Number.parseFloat(document.getElementById('inflation-rate').value) / 100;
+
+  const comparison = computeRetirementHorizonComparison(
+    { investmentAmount, desiredAnnualWithdrawal, inflationRate },
+    SECURITIES
+  );
+
+  if (!comparison.ok) {
+    showHorizonComparisonError(comparison.error);
+    return;
+  }
+
+  renderHorizonComparison(comparison);
+}
+
+horizonComparisonSubmit?.addEventListener('click', () => {
+  runHorizonComparison();
 });
 
 function clearSpendingGuardrailError() {

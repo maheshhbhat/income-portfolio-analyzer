@@ -172,6 +172,25 @@ button[type="submit"]:hover {
   margin-top: 0;
 }
 
+.horizon-comparison__horizons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0 0 1rem;
+  list-style: none;
+}
+
+.horizon-comparison__horizons li {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .comparison__actions {
   margin-bottom: 1rem;
 }

@@ -195,6 +195,34 @@
       </section>
     </section>
 
+    <section class="comparison comparison--horizon" aria-labelledby="horizon-comparison-title">
+      <h2 id="horizon-comparison-title" class="section-title">Retirement horizon comparison</h2>
+      <p class="page__subtitle">
+        Compare the same illustrative retirement inputs across the repository&apos;s fixed short, standard, and long
+        retirement horizons. This browser flow always uses this repository&apos;s curated SECURITIES set only.
+      </p>
+      <ul class="horizon-comparison__horizons" aria-label="Illustrative retirement horizons">
+        <li>Short horizon (20 years)</li>
+        <li>Standard horizon (30 years)</li>
+        <li>Long horizon (40 years)</li>
+      </ul>
+      <p id="horizon-comparison-disclosure" class="comparison__disclosure">
+        Illustrative comparison only. These fixed retirement horizons are deterministic examples from this
+        repository&apos;s curated SECURITIES set. They are not a forecast and not financial advice.
+      </p>
+      <div class="comparison__actions">
+        <button type="button" id="horizon-comparison-submit" class="button-secondary">Compare 20, 30, and 40 years</button>
+      </div>
+
+      <p id="horizon-comparison-error" class="error" role="alert" hidden></p>
+
+      <section id="horizon-comparison-results" class="results" hidden aria-live="polite">
+        <div id="horizon-comparison-summary" class="comparison__summary"></div>
+
+        <div id="horizon-comparison-projections" class="comparison__projections"></div>
+      </section>
+    </section>
+
     <section class="spending-guardrail" aria-labelledby="spending-guardrail-title">
       <h2 id="spending-guardrail-title" class="section-title">Steady vs. spending guardrail</h2>
       <p class="page__subtitle">
