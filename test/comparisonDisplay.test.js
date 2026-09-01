@@ -136,9 +136,23 @@ async function buildHarness() {
     const validState = {
       comparisonVisible: !get('comparison-results').hidden,
       errorHidden: get('comparison-error').hidden,
+      disclosureText: document.querySelector('.comparison__disclosure')?.textContent.trim() || '',
       summaryLabels: Array.from(document.querySelectorAll('#comparison-summary h3'), (node) => node.textContent.trim()),
       projectionLabels: Array.from(document.querySelectorAll('#comparison-projections h3'), (node) => node.textContent.trim()),
-      rowCounts: Array.from(document.querySelectorAll('#comparison-projections tbody'), (node) => node.querySelectorAll('tr').length)
+      rowCounts: Array.from(document.querySelectorAll('#comparison-projections tbody'), (node) => node.querySelectorAll('tr').length),
+      renderedSummaries: Array.from(document.querySelectorAll('#comparison-summary article dl'), (node) => node.textContent.trim()),
+      renderedRows: Array.from(document.querySelectorAll('#comparison-projections tbody'), (node) => node.textContent.trim())
+    };
+
+    get('comparison-submit').click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const repeatedValidState = {
+      summaryLabels: Array.from(document.querySelectorAll('#comparison-summary h3'), (node) => node.textContent.trim()),
+      projectionLabels: Array.from(document.querySelectorAll('#comparison-projections h3'), (node) => node.textContent.trim()),
+      rowCounts: Array.from(document.querySelectorAll('#comparison-projections tbody'), (node) => node.querySelectorAll('tr').length),
+      renderedSummaries: Array.from(document.querySelectorAll('#comparison-summary article dl'), (node) => node.textContent.trim()),
+      renderedRows: Array.from(document.querySelectorAll('#comparison-projections tbody'), (node) => node.textContent.trim())
     };
 
     get('investment-amount').value = '0';
@@ -167,6 +181,7 @@ async function buildHarness() {
     resultEl.textContent = JSON.stringify({
       elapsedMs,
       validState,
+      repeatedValidState,
       invalidState: {
         errorShownAfterClear,
         comparisonHidden: get('comparison-results').hidden,
@@ -235,7 +250,7 @@ async function runChromeHarness() {
   }
 }
 
-test('OE-DEGRADE-1: browser comparison flow clears stale output, renders only the exact 2%, 3%, and 4% scenarios, and stays under one second at representative scale', { timeout: 30000 }, async (t) => {
+test('OE-RESP-1 and OE-DEGRADE-1: browser comparison flow renders the exact representative scenarios under one second, stays deterministic, exposes disclosure, and clears stale output', { timeout: 30000 }, async (t) => {
   let outcome;
   try {
     outcome = await runChromeHarness();
@@ -246,6 +261,10 @@ test('OE-DEGRADE-1: browser comparison flow clears stale output, renders only th
   assert.equal(outcome.harnessError, undefined, outcome.harnessError);
   assert.equal(outcome.validState.comparisonVisible, true);
   assert.equal(outcome.validState.errorHidden, true);
+  assert.match(outcome.validState.disclosureText, /illustrative comparison only/i);
+  assert.match(outcome.validState.disclosureText, /deterministic examples/i);
+  assert.match(outcome.validState.disclosureText, /not a forecast/i);
+  assert.match(outcome.validState.disclosureText, /not financial advice/i);
   assert.deepEqual(outcome.validState.summaryLabels, ['2%', '3%', '4%']);
   assert.deepEqual(outcome.validState.projectionLabels, [
     '2% year-by-year projection',
@@ -253,6 +272,11 @@ test('OE-DEGRADE-1: browser comparison flow clears stale output, renders only th
     '4% year-by-year projection'
   ]);
   assert.deepEqual(outcome.validState.rowCounts, [30, 30, 30]);
+  assert.deepEqual(outcome.repeatedValidState.summaryLabels, outcome.validState.summaryLabels);
+  assert.deepEqual(outcome.repeatedValidState.projectionLabels, outcome.validState.projectionLabels);
+  assert.deepEqual(outcome.repeatedValidState.rowCounts, outcome.validState.rowCounts);
+  assert.deepEqual(outcome.repeatedValidState.renderedSummaries, outcome.validState.renderedSummaries);
+  assert.deepEqual(outcome.repeatedValidState.renderedRows, outcome.validState.renderedRows);
   assert.ok(outcome.elapsedMs < 1000, `representative $1,000,000/30-year browser comparison rendered in ${outcome.elapsedMs.toFixed(2)}ms`);
 
   assert.equal(outcome.invalidState.errorShownAfterClear, true);
@@ -315,6 +339,20 @@ test('comparison flow regression still clears stale output and renders only the 
       const body = table.children[0];
       assert.equal(body.children.length, 30, 'each rendered projection has one row per requested year');
     }
+
+    const firstSummaryRender = get('comparison-summary').children.map((card) => card.children[1].children.map((node) => node.textContent));
+    const firstProjectionRender = get('comparison-projections').children.map((section) => section.children[1].children[0].children.map((row) => row.innerHTML));
+    get('comparison-submit').click();
+    assert.deepEqual(
+      get('comparison-summary').children.map((card) => card.children[1].children.map((node) => node.textContent)),
+      firstSummaryRender,
+      'repeated identical valid submissions render equivalent summary details'
+    );
+    assert.deepEqual(
+      get('comparison-projections').children.map((section) => section.children[1].children[0].children.map((row) => row.innerHTML)),
+      firstProjectionRender,
+      'repeated identical valid submissions render equivalent projection rows'
+    );
     assert.deepEqual(consoleErrors, [], 'the valid flow produces no page-console errors');
 
     get('investment-amount').value = '0';
