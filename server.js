@@ -11,7 +11,7 @@ import { refreshProviderSnapshot } from './src/lib/providerRefresh.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
-const CONTENT_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+const CONTENT_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml' };
 const SEEDS = Object.freeze({ vanguard: VANGUARD_SNAPSHOT, fidelity: FIDELITY_SNAPSHOT });
 const supportedError = (id) => `Unsupported provider${id ? ` \"${id}\"` : ''}. Choose one of: illustrative, ${SUPPORTED_PROVIDER_IDS.join(', ')}.`;
 const dateToday = () => new Date().toISOString().slice(0, 10);
@@ -98,6 +98,14 @@ export function createRequestHandler({ root = ROOT, fetchImpl = globalThis.fetch
   }
   return async (req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    // Chrome asks for this conventional path when no icon has been discovered
+    // yet. The declared SVG is the real icon; this harmless fallback prevents
+    // an automatic browser request from becoming a page-console error.
+    if (url.pathname === '/favicon.ico') {
+      res.writeHead(204, { 'Cache-Control': 'public, max-age=86400' });
+      res.end();
+      return;
+    }
     // Keep an empty provider identifier on the API surface. Without this
     // explicit branch it falls through to static-file handling and loses the
     // actionable supported-provider message that every other bad identifier

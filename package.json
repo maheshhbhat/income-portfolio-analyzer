@@ -6,7 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test $(find test -name '*.test.js' ! -name 'horizonComparisonChrome.test.js' -print)",
+    "test:chrome": "playwright test --project=chrome"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
   },
   "engines": {
     "node": ">=20"
