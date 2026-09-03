@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Income Portfolio Analyzer">
+  <rect width="64" height="64" rx="14" fill="#173f5f"/>
+  <path d="M14 45h36M18 39l10-11 8 7 11-16" fill="none" stroke="#7ed6a5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="47" cy="19" r="4" fill="#f6c85f"/>
+</svg>

@@ -53,10 +53,19 @@ test('OE-SCALE-1, OE-RESP-1, OE-PROVIDER-1, and OE-DEGRADE-1: the integrated hor
   expect(testInfo.project.use.headless).toBe(true);
 
   const consoleErrors = [];
+  const networkErrors = [];
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   page.on('pageerror', (error) => consoleErrors.push(error.message));
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      networkErrors.push(`HTTP ${response.status()} ${response.url()}`);
+    }
+  });
+  page.on('requestfailed', (request) => {
+    networkErrors.push(`REQUEST FAILED ${request.url()} ${request.failure()?.errorText ?? ''}`.trim());
+  });
 
   const providerRequests = [];
   page.on('request', (request) => {
@@ -144,5 +153,19 @@ test('OE-SCALE-1, OE-RESP-1, OE-PROVIDER-1, and OE-DEGRADE-1: the integrated hor
   expect(refusalState.disclosureHidden).toBe(false);
   expect(refusalState.disclosure).toMatch(/illustrative comparison only/i);
   expect(refusalState.disclosure).toMatch(/not financial advice/i);
-  expect(consoleErrors).toEqual([]);
+  expect({ consoleErrors, networkErrors }).toEqual({ consoleErrors: [], networkErrors: [] });
+});
+
+test('failed-resource diagnostics include the exact address and response status', async ({ page }) => {
+  const failures = [];
+  page.on('response', (response) => {
+    if (response.status() >= 400) failures.push(`HTTP ${response.status()} ${response.url()}`);
+  });
+
+  const response = await page.goto('/missing-resource-diagnostic-probe');
+
+  expect(response.status()).toBe(404);
+  expect(failures).toEqual([
+    'HTTP 404 http://127.0.0.1:4173/missing-resource-diagnostic-probe'
+  ]);
 });

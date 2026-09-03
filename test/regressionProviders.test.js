@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { EventEmitter } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,6 +14,16 @@ import { computeRetirementPlan } from '../src/lib/retirement.js';
 import { createRequestHandler } from '../server.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+async function javascriptFilesUnder(directory) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...await javascriptFilesUnder(entryPath));
+    else if (entry.name.endsWith('.js')) files.push(entryPath);
+  }
+  return files;
+}
 
 // These literals are the pre-provider illustrative contract.  Keeping the
 // expected values here (rather than deriving them from the implementation)
@@ -100,7 +110,7 @@ test('committed spot-check manifest is the exact generated record of every verif
 test('provider hardening keeps the zero-runtime-dependency and integer-cent contracts while allowing only the approved browser-test dependency', async () => {
   const packageJson = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
   assert.deepEqual(packageJson.dependencies ?? {}, {});
-  assert.deepEqual(packageJson.devDependencies, { '@playwright/test': '1.55.0' });
+  assert.deepEqual(packageJson.devDependencies, { '@playwright/test': '1.62.1' });
   const packageLock = JSON.parse(await readFile(path.join(ROOT, 'package-lock.json'), 'utf8'));
   assert.deepEqual(packageLock.packages[''].devDependencies, packageJson.devDependencies);
   assert.equal(packageLock.packages['node_modules/@playwright/test'].dev, true);
@@ -130,6 +140,16 @@ test('provider regression pins the single fail-closed branded-Chrome assurance p
   assert.match(workflow, /npm run test:chrome/);
   assert.doesNotMatch(workflow, /continue-on-error/);
   assert.doesNotMatch(browserTest, /\b(?:test|describe)\.skip\b|\bt\.skip\b/);
+
+  const rawBrowserLaunch = /Google Chrome\.app|CHROME_BIN|--dump-dom|--remote-debugging|child_process/;
+  for (const testFile of await javascriptFilesUnder(path.join(ROOT, 'test'))) {
+    if (testFile === fileURLToPath(import.meta.url)) continue;
+    assert.doesNotMatch(
+      await readFile(testFile, 'utf8'),
+      rawBrowserLaunch,
+      `${path.relative(ROOT, testFile)} must use the supported Playwright Chrome path instead of launching a browser process directly`
+    );
+  }
   assert.match(ownerProcedure, /guidance only and is not Project acceptance evidence/i);
   assert.match(ownerProcedure, /Full application commit SHA/);
   assert.match(ownerProcedure, /Branded Google Chrome version/);
