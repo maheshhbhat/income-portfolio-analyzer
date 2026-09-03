@@ -97,17 +97,45 @@ test('committed spot-check manifest is the exact generated record of every verif
   assert.equal((actual.match(/^\| (?:vanguard|fidelity) \|/gm) || []).length, 48);
 });
 
-test('provider hardening keeps the zero-dependency and integer-cent contracts', async () => {
+test('provider hardening keeps the zero-runtime-dependency and integer-cent contracts while allowing only the approved browser-test dependency', async () => {
   const packageJson = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
   assert.deepEqual(packageJson.dependencies ?? {}, {});
-  assert.deepEqual(packageJson.devDependencies ?? {}, {});
-  for (const lockfile of ['package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']) {
+  assert.deepEqual(packageJson.devDependencies, { '@playwright/test': '1.55.0' });
+  const packageLock = JSON.parse(await readFile(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  assert.deepEqual(packageLock.packages[''].devDependencies, packageJson.devDependencies);
+  assert.equal(packageLock.packages['node_modules/@playwright/test'].dev, true);
+  for (const lockfile of ['npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml']) {
     await assert.rejects(access(path.join(ROOT, lockfile)));
   }
   const required = computeRequiredPortfolio({ desiredAnnualWithdrawalCents: 1000000, horizonYears: 1, inflationRate: 0.02 }, VANGUARD_SNAPSHOT.entries);
   assert.equal(required.ok, true);
   assert.ok(Number.isInteger(required.requiredPortfolioCents));
   assert.ok(required.allocation.every((line) => Number.isInteger(line.amountCents)));
+});
+
+test('provider regression pins the single fail-closed branded-Chrome assurance path', async () => {
+  const packageJson = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
+  const config = await readFile(path.join(ROOT, 'playwright.config.js'), 'utf8');
+  const workflow = await readFile(path.join(ROOT, '.github', 'workflows', 'tests.yml'), 'utf8');
+  const browserTest = await readFile(path.join(ROOT, 'test', 'horizonComparisonChrome.test.js'), 'utf8');
+  const ownerProcedure = await readFile(path.join(ROOT, 'test', 'horizonComparisonChromeUat.md'), 'utf8');
+
+  assert.equal(packageJson.scripts['test:chrome'], 'playwright test --project=chrome');
+  assert.equal((config.match(/name:\s*['"]chrome['"]/g) || []).length, 1);
+  assert.match(config, /channel:\s*['"]chrome['"]/);
+  assert.match(config, /headless:\s*true/);
+  assert.doesNotMatch(config, /channel:\s*['"]chromium['"]|headless:\s*false|process\.env/);
+  assert.match(workflow, /npm ci/);
+  assert.match(workflow, /playwright install --with-deps chrome/);
+  assert.match(workflow, /npm run test:chrome/);
+  assert.doesNotMatch(workflow, /continue-on-error/);
+  assert.doesNotMatch(browserTest, /\b(?:test|describe)\.skip\b|\bt\.skip\b/);
+  assert.match(ownerProcedure, /guidance only and is not Project acceptance evidence/i);
+  assert.match(ownerProcedure, /Full application commit SHA/);
+  assert.match(ownerProcedure, /Branded Google Chrome version/);
+  assert.match(ownerProcedure, /Measured click-to-visible time/);
+  assert.match(ownerProcedure, /Invalid refusal and stale-output clearing/);
+  assert.match(ownerProcedure, /Page-generated console errors/);
 });
 
 function responseFor(entry, { ok = true, url, text, requestUrl } = {}) {

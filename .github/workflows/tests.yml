@@ -40,20 +40,19 @@ jobs:
         with:
           node-version: '20'
 
-      # No dependencies by design (product.md, standing constraint 7), so there
-      # is nothing to install. A lockfile appearing here is a signal that the
-      # constraint was traded away, and that should be a deliberate decision.
-      - name: Refuse an unannounced dependency
-        run: |
-          if [ -f package-lock.json ] || [ -d node_modules ]; then
-            echo "product.md constraint 7 says zero runtime dependencies."
-            echo "Adding one is allowed, but it amends product.md first."
-            exit 1
-          fi
-          echo "no dependencies, as declared"
+      - name: Install locked test dependencies
+        run: npm ci
+
+      # The approved assurance promise is branded Google Chrome. Installation
+      # or launch failure is intentionally fatal; there is no Chromium fallback.
+      - name: Install branded Google Chrome for Playwright
+        run: npx playwright install --with-deps chrome
 
       - name: Run the test suite
         run: npm test
+
+      - name: Run blocking branded-Chrome horizon assurance
+        run: npm run test:chrome
 
       - name: Run merge-gate unit tests
         run: python3 -m unittest discover -s .github/merge-gate -p 'test_*.py' -v
