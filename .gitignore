@@ -7,3 +7,9 @@ node_modules/
 
 # Machine-local, atomically persisted last-known-good provider snapshots.
 .runtime/
+
+# Python bytecode cache — produced automatically whenever a .py test runs,
+# not deliberate content. Needed for the disposable Phase 5 rehearsal Stories
+# under runs/rehearsal-661/** (Project #112), which use Python test files.
+__pycache__/
+*.pyc
